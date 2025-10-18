@@ -17,6 +17,7 @@ public class SearchResult
     public string Title { get; set; } = string.Empty;
     public string Url { get; set; } = string.Empty;
     public string Snippet { get; set; } = string.Empty;
+    public string? Content { get; set; } // Full webpage content
 }
 
 public class ConversationContext

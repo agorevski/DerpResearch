@@ -256,7 +256,7 @@ public class OrchestratorService : IOrchestratorService
             }
             yield return "\n";
 
-            // Execute additional searches
+            // Execute additional searches using SearchAgent to fetch full webpage content
             var additionalSearchCount = 0;
             foreach (var searchQuery in reflection.SuggestedAdditionalSearches)
             {
@@ -269,25 +269,41 @@ public class OrchestratorService : IOrchestratorService
                     new SearchQueryUpdate(searchQuery, additionalSearchCount, reflection.SuggestedAdditionalSearches.Length)
                 ), _jsonOptions) + "\n";
 
-                SearchResult[] additionalResults = Array.Empty<SearchResult>();
-                
-                // Perform additional search (no yield in try-catch)
+                // Create a simple plan with single search query for SearchAgent
+                var additionalPlan = new ResearchPlan
+                {
+                    MainGoal = searchQuery,
+                    Subtasks = new[]
+                    {
+                        new ResearchTask
+                        {
+                            Description = searchQuery,
+                            SearchQuery = searchQuery,
+                            Priority = 1
+                        }
+                    }
+                };
+
+                GatheredInformation additionalInfo;
                 try
                 {
-                    additionalResults = await _searchService.SearchAsync(searchQuery, 5);
+                    // Use SearchAgent to fetch with full webpage content
+                    additionalInfo = await _searchAgent.ExecuteSearchPlanAsync(additionalPlan, derpificationLevel);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed additional search: {Query}", searchQuery);
+                    continue;
                 }
 
                 // Filter out duplicate URLs
                 var existingUrls = new HashSet<string>(allResults.Select(r => r.Url));
-                var newResults = additionalResults.Where(r => !existingUrls.Contains(r.Url)).ToArray();
+                var newResults = additionalInfo.Results.Where(r => !existingUrls.Contains(r.Url)).ToArray();
                 
                 allResults.AddRange(newResults);
+                allMemoryIds.AddRange(additionalInfo.StoredMemoryIds);
 
-                // Yield and store each new source (outside try-catch)
+                // Yield each new source
                 foreach (var result in newResults)
                 {
                     yield return JsonSerializer.Serialize(new StreamToken(
@@ -296,25 +312,6 @@ public class OrchestratorService : IOrchestratorService
                         "source",
                         new SourceUpdate(result.Title, result.Url, result.Snippet)
                     ), _jsonOptions) + "\n";
-
-                    // Store in memory
-                    try
-                    {
-                        var memoryText = $"{result.Title}\n{result.Snippet}\nSource: {result.Url}";
-                        var tags = new[] { "search-result", "additional-research", searchQuery };
-
-                        var memoryId = await _memoryService.StoreMemoryAsync(
-                            memoryText,
-                            result.Url,
-                            tags
-                        );
-
-                        allMemoryIds.Add(memoryId);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to store memory for additional source: {Title}", result.Title);
-                    }
                 }
 
                 _logger.LogInformation("Additional search '{Query}' found {NewCount} new sources", 
@@ -382,13 +379,8 @@ public class OrchestratorService : IOrchestratorService
 
     private async IAsyncEnumerable<string> ExecuteSearchWithProgressAsync(ResearchPlan plan, string conversationId, int derpificationLevel)
     {
-        var allResults = new List<SearchResult>();
-        var storedMemoryIds = new List<string>();
         int taskNumber = 0;
         int totalTasks = plan.Subtasks.Length;
-        
-        // Determine number of results based on derpification level
-        int resultsPerQuery = derpificationLevel <= 33 ? 3 : (derpificationLevel <= 66 ? 5 : 8);
 
         foreach (var task in plan.Subtasks)
         {
@@ -401,61 +393,37 @@ public class OrchestratorService : IOrchestratorService
                 "search_query",
                 new SearchQueryUpdate(task.SearchQuery, taskNumber, totalTasks)
             ), _jsonOptions) + "\n";
+        }
 
-            SearchResult[] results = Array.Empty<SearchResult>();
-            
-            // Perform search (no yield in try-catch)
-            try
+        // Use SearchAgent which handles fetching webpage content
+        GatheredInformation info;
+        try
+        {
+            info = await _searchAgent.ExecuteSearchPlanAsync(plan, derpificationLevel);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to execute search plan");
+            info = new GatheredInformation
             {
-                results = await _searchService.SearchAsync(task.SearchQuery, resultsPerQuery);
-                allResults.AddRange(results);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to search for subtask: {Description}", task.Description);
-            }
+                Results = Array.Empty<SearchResult>(),
+                StoredMemoryIds = Array.Empty<string>(),
+                TotalSourcesFound = 0
+            };
+        }
 
-            // Yield each source as it's found (outside try-catch)
-            foreach (var result in results)
-            {
-                yield return JsonSerializer.Serialize(new StreamToken(
-                    "",
-                    conversationId,
-                    "source",
-                    new SourceUpdate(result.Title, result.Url, result.Snippet)
-                ), _jsonOptions) + "\n";
-
-                // Store in memory
-                try
-                {
-                    var memoryText = $"{result.Title}\n{result.Snippet}\nSource: {result.Url}";
-                    var tags = new[] { "search-result", task.SearchQuery };
-
-                    var memoryId = await _memoryService.StoreMemoryAsync(
-                        memoryText,
-                        result.Url,
-                        tags
-                    );
-
-                    storedMemoryIds.Add(memoryId);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to store memory for source: {Title}", result.Title);
-                }
-            }
-
-            await Task.Delay(500);
+        // Yield each source that was successfully fetched
+        foreach (var result in info.Results)
+        {
+            yield return JsonSerializer.Serialize(new StreamToken(
+                "",
+                conversationId,
+                "source",
+                new SourceUpdate(result.Title, result.Url, result.Snippet)
+            ), _jsonOptions) + "\n";
         }
 
         // Yield the final result with a special prefix so it's not sent to the client
-        var info = new GatheredInformation
-        {
-            Results = allResults.ToArray(),
-            StoredMemoryIds = storedMemoryIds.ToArray(),
-            TotalSourcesFound = allResults.Count
-        };
-        
         yield return "FINAL_INFO:" + System.Text.Json.JsonSerializer.Serialize(info);
     }
 

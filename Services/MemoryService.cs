@@ -51,30 +51,66 @@ public class MemoryService : IMemoryService
 
     public async Task<string> StoreMemoryAsync(string text, string source, string[] tags, string? conversationId = null)
     {
-        var id = Guid.NewGuid().ToString();
-        var embedding = await _llmService.GetEmbedding(text);
-        var vectorId = _faissIndex.AddVector(embedding);
+        // Split large texts into chunks to avoid embedding token limits
+        // Using conservative defaults: 3000 tokens max, 100 token overlap
+        var chunks = TextChunker.ChunkText(text, maxTokens: 3000, overlapTokens: 100);
+        
+        if (chunks.Length == 0)
+        {
+            _logger.LogWarning("Empty text provided to StoreMemoryAsync from source: {Source}", source);
+            return string.Empty;
+        }
+
+        _logger.LogInformation("Splitting text into {ChunkCount} chunks for source: {Source}", chunks.Length, source);
+
+        var primaryId = Guid.NewGuid().ToString();
 
         await using var connection = _dbInitializer.CreateConnection();
         await connection.OpenAsync();
 
-        var command = connection.CreateCommand();
-        command.CommandText = @"
-            INSERT INTO Memories (Id, Text, Source, Tags, VectorId, Timestamp, ConversationId)
-            VALUES ($id, $text, $source, $tags, $vectorId, $timestamp, $conversationId)
-        ";
-        command.Parameters.AddWithValue("$id", id);
-        command.Parameters.AddWithValue("$text", text);
-        command.Parameters.AddWithValue("$source", source);
-        command.Parameters.AddWithValue("$tags", JsonSerializer.Serialize(tags));
-        command.Parameters.AddWithValue("$vectorId", vectorId);
-        command.Parameters.AddWithValue("$timestamp", DateTime.UtcNow.ToString("O"));
-        command.Parameters.AddWithValue("$conversationId", conversationId ?? (object)DBNull.Value);
+        // Store each chunk as a separate memory entry
+        for (int i = 0; i < chunks.Length; i++)
+        {
+            var chunk = chunks[i];
+            var chunkId = chunks.Length == 1 ? primaryId : $"{primaryId}-chunk{i}";
+            
+            try
+            {
+                var embedding = await _llmService.GetEmbedding(chunk);
+                var vectorId = _faissIndex.AddVector(embedding);
 
-        await command.ExecuteNonQueryAsync();
-        _logger.LogDebug("Stored memory {Id} with vector {VectorId}", id, vectorId);
+                var command = connection.CreateCommand();
+                command.CommandText = @"
+                    INSERT INTO Memories (Id, Text, Source, Tags, VectorId, Timestamp, ConversationId)
+                    VALUES ($id, $text, $source, $tags, $vectorId, $timestamp, $conversationId)
+                ";
+                command.Parameters.AddWithValue("$id", chunkId);
+                command.Parameters.AddWithValue("$text", chunk);
+                
+                // Add chunk info to source if multiple chunks
+                var sourceWithChunk = chunks.Length > 1 
+                    ? $"{source} (chunk {i + 1}/{chunks.Length})" 
+                    : source;
+                command.Parameters.AddWithValue("$source", sourceWithChunk);
+                
+                command.Parameters.AddWithValue("$tags", JsonSerializer.Serialize(tags));
+                command.Parameters.AddWithValue("$vectorId", vectorId);
+                command.Parameters.AddWithValue("$timestamp", DateTime.UtcNow.ToString("O"));
+                command.Parameters.AddWithValue("$conversationId", conversationId ?? (object)DBNull.Value);
 
-        return id;
+                await command.ExecuteNonQueryAsync();
+                _logger.LogDebug("Stored memory chunk {ChunkId} ({Index}/{Total}) with vector {VectorId}", 
+                    chunkId, i + 1, chunks.Length, vectorId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to store chunk {Index}/{Total} from source {Source}: {Message}", 
+                    i + 1, chunks.Length, source, ex.Message);
+                // Continue with next chunk even if one fails
+            }
+        }
+
+        return primaryId;
     }
 
     public async Task<MemoryChunk[]> SearchMemoryAsync(string query, int topK = 5, string? conversationId = null)

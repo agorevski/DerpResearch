@@ -103,6 +103,9 @@ catch (Exception ex)
     throw;
 }
 
+// Register Web Content Fetcher
+builder.Services.AddSingleton<IWebContentFetcher, WebContentFetcher>();
+
 // Register Search Service (use mock in Debug mode for testing)
 // builder.Services.AddSingleton<ISearchService, MockSearchService>();
 builder.Services.AddSingleton<ISearchService, SearchService>();
