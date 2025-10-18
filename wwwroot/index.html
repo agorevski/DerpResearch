@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Derp Research - AI Research Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+            max-height: 800px;
+        }
+
+        .header {
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px 20px 0 0;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .derpification-control {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .derp-slider-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .derp-label {
+            font-size: 12px;
+            font-weight: 600;
+            opacity: 0.9;
+            margin-bottom: 3px;
+        }
+
+        .derp-slider-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .derp-slider-label {
+            font-size: 10px;
+            opacity: 0.7;
+            min-width: 35px;
+        }
+
+        .derp-slider-label.left {
+            text-align: right;
+        }
+
+        .derp-slider {
+            width: 120px;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .derp-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: white;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s;
+        }
+
+        .derp-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .derp-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: white;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            border: none;
+            transition: transform 0.2s;
+        }
+
+        .derp-slider::-moz-range-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .brain-container {
+            width: 70px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .brain-svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+            transition: transform 0.3s ease;
+        }
+
+        .brain-svg.thinking {
+            animation: brainPulse 0.5s ease;
+        }
+
+        @keyframes brainPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .brain-wrinkle {
+            transition: opacity 0.3s ease, stroke-width 0.3s ease;
+        }
+
+        .mode-selector {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .mode-btn {
+            padding: 8px 20px;
+            border: 2px solid white;
+            background: transparent;
+            color: white;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .mode-btn.active {
+            background: white;
+            color: #667eea;
+        }
+
+        .chat-container {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+            background: #f7f9fc;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            text-align: right;
+        }
+
+        .message-content {
+            display: inline-block;
+            max-width: 80%;
+            padding: 15px 20px;
+            border-radius: 18px;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message.assistant .message-content {
+            background: white;
+            color: #333;
+            border: 1px solid #e1e8ed;
+            text-align: left;
+        }
+
+        .message.assistant .message-content h1,
+        .message.assistant .message-content h2,
+        .message.assistant .message-content h3 {
+            margin-top: 15px;
+            margin-bottom: 10px;
+        }
+
+        .message.assistant .message-content ul,
+        .message.assistant .message-content ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .message.assistant .message-content p {
+            margin: 10px 0;
+            line-height: 1.6;
+        }
+
+        .message.assistant .message-content code {
+            background: #f7f9fc;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .research-progress {
+            background: #f0f4ff;
+            border: 1px solid #d0d9ff;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .progress-header {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .progress-stage {
+            background: #e8edff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin: 5px 0;
+            font-size: 14px;
+            color: #555;
+        }
+
+        .research-plan {
+            background: #fff9e6;
+            border: 1px solid #ffe699;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+
+        .research-plan h4 {
+            color: #cc8800;
+            margin-bottom: 10px;
+        }
+
+        .research-plan ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .research-plan li {
+            padding: 5px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .research-plan li:before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            color: #cc8800;
+        }
+
+        .search-queries {
+            margin: 10px 0;
+        }
+
+        .search-query {
+            background: #e3f2fd;
+            border-left: 3px solid #2196f3;
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #1565c0;
+        }
+
+        .sources-section {
+            margin: 15px 0;
+        }
+
+        .sources-header {
+            font-weight: 600;
+            color: #2e7d32;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+
+        .source-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+            transition: all 0.2s;
+        }
+
+        .source-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+        }
+
+        .source-title {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .source-url {
+            color: #666;
+            font-size: 12px;
+            text-decoration: none;
+            word-break: break-all;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .source-url:hover {
+            color: #667eea;
+            text-decoration: underline;
+        }
+
+        .source-snippet {
+            color: #555;
+            font-size: 13px;
+            line-height: 1.4;
+            margin-top: 5px;
+        }
+
+        .synthesis-divider {
+            border-top: 2px solid #667eea;
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .synthesis-divider:after {
+            content: "Analysis";
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #f7f9fc;
+            padding: 0 15px;
+            color: #667eea;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .input-container {
+            padding: 20px 30px;
+            background: white;
+            border-top: 1px solid #e1e8ed;
+            border-radius: 0 0 20px 20px;
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #messageInput {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #e1e8ed;
+            border-radius: 25px;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        #messageInput:focus {
+            border-color: #667eea;
+        }
+
+        #sendBtn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+
+        #sendBtn:hover:not(:disabled) {
+            transform: scale(1.05);
+        }
+
+        #sendBtn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .typing-indicator {
+            display: none;
+            padding: 15px;
+        }
+
+        .typing-indicator.active {
+            display: block;
+        }
+
+        .typing-dots {
+            display: inline-flex;
+            gap: 5px;
+        }
+
+        .typing-dots span {
+            width: 8px;
+            height: 8px;
+            background: #667eea;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+
+        .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        .tilted-r {
+            display: inline-block;
+            transform: rotate(15deg) translateX(-4px) translateY(2px);
+            transform-origin: bottom center;
+        }
+
+        .clarification-section {
+            background: #fff3e0;
+            border: 2px solid #ff9800;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+
+        .clarification-header {
+            font-weight: 600;
+            color: #e65100;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        .clarification-rationale {
+            color: #bf360c;
+            font-size: 14px;
+            margin-bottom: 15px;
+            font-style: italic;
+            line-height: 1.5;
+        }
+
+        .clarification-questions {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .clarification-question label {
+            display: block;
+            font-weight: 600;
+            color: #d84315;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .clarification-input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ffb74d;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .clarification-input:focus {
+            border-color: #ff9800;
+        }
+
+        .clarification-input:disabled {
+            background: #f5f5f5;
+            cursor: not-allowed;
+        }
+
+        .clarification-submit-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            font-size: 15px;
+        }
+
+        .clarification-submit-btn:hover:not(:disabled) {
+            transform: scale(1.02);
+        }
+
+        .clarification-submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="derpification-control">
+                <div class="derp-slider-container">
+                    <div class="derp-label">Derpification</div>
+                    <div class="derp-slider-wrapper">
+                        <span class="derp-slider-label left">Derp</span>
+                        <input type="range" min="0" max="100" value="100" class="derp-slider" id="derpSlider">
+                        <span class="derp-slider-label">Smart</span>
+                    </div>
+                </div>
+                <div class="brain-container">
+                    <svg class="brain-svg" id="brainSvg" viewBox="0 0 120 100" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Brain base shape - more organic human brain shape -->
+                        <path d="M 60 15 
+                                 C 45 15, 35 20, 30 28
+                                 C 25 35, 22 42, 20 50
+                                 C 18 58, 18 66, 20 73
+                                 C 22 80, 26 85, 32 88
+                                 C 38 91, 45 92, 52 91
+                                 C 54 91, 56 91, 58 90
+                                 C 60 91, 62 91, 64 91
+                                 C 71 92, 78 91, 84 88
+                                 C 90 85, 94 80, 96 73
+                                 C 98 66, 98 58, 96 50
+                                 C 94 42, 91 35, 86 28
+                                 C 81 20, 71 15, 60 15 Z" 
+                                 fill="#FFB6C1" stroke="#E91E8C" stroke-width="1.5"/>
+                        
+                        <!-- Cerebral fissure (center dividing line) -->
+                        <path d="M 60 20 Q 59 35, 58 50 Q 57 65, 58 80 Q 58.5 85, 59 88" 
+                              stroke="#E91E8C" stroke-width="2" fill="none" opacity="0.8"/>
+                        
+                        <!-- Wrinkles - More organic, brain-like curves -->
+                        <!-- Wrinkle 1 - Always visible (frontal lobe, left) -->
+                        <path class="brain-wrinkle" id="wrinkle1" 
+                              d="M 32 30 Q 35 28, 38 30 Q 40 32, 38 35 Q 36 37, 34 36" 
+                              stroke="#E91E8C" stroke-width="1.8" fill="none" opacity="1"/>
+                        
+                        <!-- Wrinkle 2 - Always visible (frontal lobe, right) -->
+                        <path class="brain-wrinkle" id="wrinkle2" 
+                              d="M 78 30 Q 81 28, 84 30 Q 86 32, 84 35 Q 82 37, 80 36" 
+                              stroke="#E91E8C" stroke-width="1.8" fill="none" opacity="1"/>
+                        
+                        <!-- Wrinkle 3 - Visible at 20%+ (temporal lobe, left) -->
+                        <path class="brain-wrinkle" id="wrinkle3" 
+                              d="M 26 48 Q 28 45, 31 47 Q 34 49, 32 52 Q 30 54, 28 52" 
+                              stroke="#E91E8C" stroke-width="1.6" fill="none" opacity="0"/>
+                        
+                        <!-- Wrinkle 4 - Visible at 20%+ (temporal lobe, right) -->
+                        <path class="brain-wrinkle" id="wrinkle4" 
+                              d="M 84 48 Q 86 45, 89 47 Q 92 49, 90 52 Q 88 54, 86 52" 
+                              stroke="#E91E8C" stroke-width="1.6" fill="none" opacity="0"/>
+                        
+                        <!-- Wrinkle 5 - Visible at 40%+ (parietal lobe, left) -->
+                        <path class="brain-wrinkle" id="wrinkle5" 
+                              d="M 35 42 Q 38 40, 42 42 Q 45 44, 43 47 Q 41 49, 38 48" 
+                              stroke="#E91E8C" stroke-width="1.5" fill="none" opacity="0"/>
+                        
+                        <!-- Wrinkle 6 - Visible at 40%+ (parietal lobe, right) -->
+                        <path class="brain-wrinkle" id="wrinkle6" 
+                              d="M 72 42 Q 75 40, 79 42 Q 82 44, 80 47 Q 78 49, 75 48" 
+                              stroke="#E91E8C" stroke-width="1.5" fill="none" opacity="0"/>
+                        
+                        <!-- Wrinkle 7 - Visible at 60%+ (occipital lobe, left) -->
+                        <path class="brain-wrinkle" id="wrinkle7" 
+                              d="M 30 68 Q 33 65, 37 67 Q 40 69, 38 72 Q 36 75, 33 73" 
+                              stroke="#E91E8C" stroke-width="1.5" fill="none" opacity="0"/>
+                        
+                        <!-- Wrinkle 8 - Visible at 60%+ (occipital lobe, right) -->
+                        <path class="brain-wrinkle" id="wrinkle8" 
+                              d="M 78 68 Q 81 65, 85 67 Q 88 69, 86 72 Q 84 75, 81 73" 
+                              stroke="#E91E8C" stroke-width="1.5" fill="none" opacity="0"/>
+                        
+                        <!-- Wrinkle 9 - Visible at 80%+ (superior frontal gyrus, left) -->
+                        <path class="brain-wrinkle" id="wrinkle9" 
+                              d="M 40 25 Q 43 23, 46 25 Q 48 27, 46 30 Q 44 32, 42 30 Q 40 28, 40 26" 
+                              stroke="#E91E8C" stroke-width="1.4" fill="none" opacity="0"/>
+                        
+                        <!-- Wrinkle 10 - Visible at 80%+ (superior frontal gyrus, right) -->
+                        <path class="brain-wrinkle" id="wrinkle10" 
+                              d="M 68 25 Q 71 23, 74 25 Q 76 27, 74 30 Q 72 32, 70 30 Q 68 28, 68 26" 
+                              stroke="#E91E8C" stroke-width="1.4" fill="none" opacity="0"/>
+                        
+                        <!-- Additional detail wrinkles for realism (always visible at low opacity) -->
+                        <path d="M 42 55 Q 45 53, 48 55" stroke="#E91E8C" stroke-width="1" fill="none" opacity="0.3"/>
+                        <path d="M 66 55 Q 69 53, 72 55" stroke="#E91E8C" stroke-width="1" fill="none" opacity="0.3"/>
+                        <path d="M 38 60 Q 40 58, 43 60" stroke="#E91E8C" stroke-width="1" fill="none" opacity="0.2"/>
+                        <path d="M 71 60 Q 73 58, 76 60" stroke="#E91E8C" stroke-width="1" fill="none" opacity="0.2"/>
+                    </svg>
+                </div>
+            </div>
+            
+            <h1>🔬 De<span class="tilted-r">r</span>p Research</h1>
+            <p>AI-powered research assistant with web search and memory</p>
+            <div class="mode-selector">
+                <button class="mode-btn active" data-mode="deep-research">Derp Research</button>
+                <button class="mode-btn" data-mode="simple-chat">Simple Chat</button>
+            </div>
+        </div>
+
+        <div class="chat-container" id="chatContainer">
+            <div class="message assistant">
+                <div class="message-content">
+                    👋 Welcome! I'm your Derp Research assistant. Ask me anything and I'll search the web, analyze sources, and provide comprehensive answers with citations.
+                    <br><br>
+                    Try asking: <em>"Compare GPT-4 and Claude 3 in terms of capabilities"</em>
+                </div>
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+
+        <div class="input-container">
+            <div class="input-wrapper">
+                <input type="text" id="messageInput" placeholder="Ask me anything..." />
+                <button id="sendBtn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        let conversationId = null;
+        let currentMode = 'deep-research';
+        let isProcessing = false;
+        let currentResearchDiv = null;
+        let currentProgressDiv = null;
+        let currentPlanDiv = null;
+        let currentQueriesDiv = null;
+        let currentSourcesDiv = null;
+        let currentSynthesisDiv = null;
+
+        // Token buffering for smooth rendering
+        let tokenBuffer = [];
+        let isRendering = false;
+        let renderingIntervalId = null;
+        const CHARS_PER_INTERVAL = 1;
+        const RENDER_INTERVAL_MS = 5;
+        const MARKDOWN_REFRESH_CHARS = 20; // Re-render markdown every N characters
+        let charsSinceLastMarkdownRender = 0;
+
+        const chatContainer = document.getElementById('chatContainer');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const modeButtons = document.querySelectorAll('.mode-btn');
+
+        // Derpification controls
+        const derpSlider = document.getElementById('derpSlider');
+        const brainSvg = document.getElementById('brainSvg');
+        let derpificationLevel = 100; // 0-100, default to smartest
+
+        // Initialize brain wrinkles based on default slider value
+        updateBrainWrinkles(derpificationLevel);
+
+        // Derpification slider handler
+        derpSlider.addEventListener('input', (e) => {
+            derpificationLevel = parseInt(e.target.value);
+            updateBrainWrinkles(derpificationLevel);
+            
+            // Add pulse animation when slider changes
+            brainSvg.classList.add('thinking');
+            setTimeout(() => brainSvg.classList.remove('thinking'), 500);
+        });
+
+        function updateBrainWrinkles(level) {
+            // Wrinkles 1-2: Always visible (0%+)
+            setWrinkleOpacity('wrinkle1', 1);
+            setWrinkleOpacity('wrinkle2', 1);
+            
+            // Wrinkles 3-4: Visible at 20%+
+            setWrinkleOpacity('wrinkle3', level >= 20 ? 1 : 0);
+            setWrinkleOpacity('wrinkle4', level >= 20 ? 1 : 0);
+            
+            // Wrinkles 5-6: Visible at 40%+
+            setWrinkleOpacity('wrinkle5', level >= 40 ? 1 : 0);
+            setWrinkleOpacity('wrinkle6', level >= 40 ? 1 : 0);
+            
+            // Wrinkles 7-8: Visible at 60%+
+            setWrinkleOpacity('wrinkle7', level >= 60 ? 1 : 0);
+            setWrinkleOpacity('wrinkle8', level >= 60 ? 1 : 0);
+            
+            // Wrinkles 9-10: Visible at 80%+ (galaxy brain!)
+            setWrinkleOpacity('wrinkle9', level >= 80 ? 1 : 0);
+            setWrinkleOpacity('wrinkle10', level >= 80 ? 1 : 0);
+        }
+
+        function setWrinkleOpacity(wrinkleId, opacity) {
+            const wrinkle = document.getElementById(wrinkleId);
+            if (wrinkle) {
+                wrinkle.setAttribute('opacity', opacity);
+            }
+        }
+
+        // Mode selector
+        modeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                modeButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentMode = btn.dataset.mode;
+            });
+        });
+
+        // Send message
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message || isProcessing) return;
+
+            isProcessing = true;
+            sendBtn.disabled = true;
+
+            // Add user message
+            addMessage(message, 'user');
+            messageInput.value = '';
+
+            // Show typing indicator
+            typingIndicator.classList.add('active');
+
+            // Reset research tracking and buffer state
+            currentResearchDiv = null;
+            currentProgressDiv = null;
+            currentPlanDiv = null;
+            currentQueriesDiv = null;
+            currentSourcesDiv = null;
+            currentSynthesisDiv = null;
+            tokenBuffer = [];
+            charsSinceLastMarkdownRender = 0;
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        prompt: message,
+                        mode: currentMode,
+                        conversationId: conversationId,
+                        derpificationLevel: derpificationLevel
+                    })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.substring(6));
+                                
+                                if (data.conversationId && !conversationId) {
+                                    conversationId = data.conversationId;
+                                }
+
+                                if (data.type === 'done') {
+                                    break;
+                                }
+
+                                if (data.type === 'error') {
+                                    console.error('Error:', data.token);
+                                    break;
+                                }
+
+                                // Handle different message types
+                                if (data.type === 'clarification') {
+                                    handleClarificationQuestions(data.data);
+                                } else if (data.type === 'progress') {
+                                    handleProgressUpdate(data.data);
+                                } else if (data.type === 'plan') {
+                                    handlePlanUpdate(data.data);
+                                } else if (data.type === 'search_query') {
+                                    handleSearchQuery(data.data);
+                                } else if (data.type === 'source') {
+                                    handleSourceUpdate(data.data);
+                                } else if (data.token) {
+                                    // Regular content token
+                                    handleContentToken(data.token);
+                                }
+
+                                // Auto-scroll
+                                chatContainer.scrollTop = chatContainer.scrollHeight;
+                            } catch (e) {
+                                console.error('Parse error:', e, line);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage('Sorry, an error occurred. Please try again.', 'assistant');
+            } finally {
+                // Stop smooth rendering and flush remaining tokens
+                stopSmoothRendering();
+                
+                typingIndicator.classList.remove('active');
+                isProcessing = false;
+                sendBtn.disabled = false;
+                messageInput.focus();
+            }
+        }
+
+        function ensureResearchDiv() {
+            if (!currentResearchDiv) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message assistant';
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                messageDiv.appendChild(contentDiv);
+                chatContainer.appendChild(messageDiv);
+                currentResearchDiv = contentDiv;
+            }
+            return currentResearchDiv;
+        }
+
+        function handleClarificationQuestions(data) {
+            const researchDiv = ensureResearchDiv();
+            
+            const clarDiv = document.createElement('div');
+            clarDiv.className = 'clarification-section';
+            clarDiv.innerHTML = `
+                <div class="clarification-header">💭 Help me understand your research needs better</div>
+                <p class="clarification-rationale">${escapeHtml(data.rationale)}</p>
+                <div class="clarification-questions" id="clarificationQuestions">
+                    ${data.questions.map((q, i) => `
+                        <div class="clarification-question">
+                            <label>${escapeHtml(q)}</label>
+                            <input type="text" class="clarification-input" data-index="${i}" placeholder="Your answer..." />
+                        </div>
+                    `).join('')}
+                </div>
+                <button class="clarification-submit-btn" onclick="submitClarificationAnswers()">Continue with Research</button>
+            `;
+            researchDiv.appendChild(clarDiv);
+            
+            // Auto-scroll to show the clarification questions
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        window.submitClarificationAnswers = function() {
+            const inputs = document.querySelectorAll('.clarification-input');
+            const answers = Array.from(inputs).map(input => input.value.trim());
+            
+            // Filter out empty answers
+            const validAnswers = answers.filter(a => a.length > 0);
+            
+            if (validAnswers.length === 0) {
+                alert('Please answer at least one question to help me understand your needs better.');
+                return;
+            }
+            
+            // Get the original prompt from the last user message
+            const userMessages = document.querySelectorAll('.message.user');
+            const lastUserMessage = userMessages[userMessages.length - 1];
+            const originalPrompt = lastUserMessage ? lastUserMessage.textContent.trim() : '';
+            
+            // Disable the button and inputs
+            document.querySelector('.clarification-submit-btn').disabled = true;
+            inputs.forEach(input => input.disabled = true);
+            
+            // Send new request with clarification answers
+            sendMessageWithClarification(originalPrompt, answers);
+        };
+
+        async function sendMessageWithClarification(originalPrompt, clarificationAnswers) {
+            if (!originalPrompt || isProcessing) return;
+
+            isProcessing = true;
+            sendBtn.disabled = true;
+
+            // Show typing indicator
+            typingIndicator.classList.add('active');
+
+            // Reset research tracking (keep existing clarification UI visible)
+            currentProgressDiv = null;
+            currentPlanDiv = null;
+            currentQueriesDiv = null;
+            currentSourcesDiv = null;
+            currentSynthesisDiv = null;
+            tokenBuffer = [];
+            charsSinceLastMarkdownRender = 0;
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        prompt: originalPrompt,
+                        mode: currentMode,
+                        conversationId: conversationId,
+                        derpificationLevel: derpificationLevel,
+                        clarificationAnswers: clarificationAnswers
+                    })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.substring(6));
+                                
+                                if (data.conversationId && !conversationId) {
+                                    conversationId = data.conversationId;
+                                }
+
+                                if (data.type === 'done') {
+                                    break;
+                                }
+
+                                if (data.type === 'error') {
+                                    console.error('Error:', data.token);
+                                    break;
+                                }
+
+                                // Handle different message types (skip clarification this time)
+                                if (data.type === 'progress') {
+                                    handleProgressUpdate(data.data);
+                                } else if (data.type === 'plan') {
+                                    handlePlanUpdate(data.data);
+                                } else if (data.type === 'search_query') {
+                                    handleSearchQuery(data.data);
+                                } else if (data.type === 'source') {
+                                    handleSourceUpdate(data.data);
+                                } else if (data.token) {
+                                    handleContentToken(data.token);
+                                }
+
+                                chatContainer.scrollTop = chatContainer.scrollHeight;
+                            } catch (e) {
+                                console.error('Parse error:', e, line);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage('Sorry, an error occurred. Please try again.', 'assistant');
+            } finally {
+                stopSmoothRendering();
+                typingIndicator.classList.remove('active');
+                isProcessing = false;
+                sendBtn.disabled = false;
+                messageInput.focus();
+            }
+        }
+
+        function handleProgressUpdate(data) {
+            const researchDiv = ensureResearchDiv();
+            
+            if (!currentProgressDiv) {
+                currentProgressDiv = document.createElement('div');
+                currentProgressDiv.className = 'research-progress';
+                currentProgressDiv.innerHTML = '<div class="progress-header">🔍 Research Progress</div>';
+                researchDiv.appendChild(currentProgressDiv);
+            }
+
+            const stageDiv = document.createElement('div');
+            stageDiv.className = 'progress-stage';
+            stageDiv.textContent = data.message;
+            currentProgressDiv.appendChild(stageDiv);
+        }
+
+        function handlePlanUpdate(data) {
+            const researchDiv = ensureResearchDiv();
+            
+            const planDiv = document.createElement('div');
+            planDiv.className = 'research-plan';
+            planDiv.innerHTML = `
+                <h4>📋 Research Plan: ${data.goal}</h4>
+                <ul>
+                    ${data.subtasks.map(task => `<li>${task}</li>`).join('')}
+                </ul>
+            `;
+            researchDiv.appendChild(planDiv);
+            currentPlanDiv = planDiv;
+        }
+
+        function handleSearchQuery(data) {
+            const researchDiv = ensureResearchDiv();
+            
+            if (!currentQueriesDiv) {
+                currentQueriesDiv = document.createElement('div');
+                currentQueriesDiv.className = 'search-queries';
+                currentQueriesDiv.innerHTML = '<div class="progress-header">🔎 Search Queries</div>';
+                researchDiv.appendChild(currentQueriesDiv);
+            }
+
+            const queryDiv = document.createElement('div');
+            queryDiv.className = 'search-query';
+            queryDiv.textContent = `${data.taskNumber}/${data.totalTasks}: ${data.query}`;
+            currentQueriesDiv.appendChild(queryDiv);
+        }
+
+        function handleSourceUpdate(data) {
+            const researchDiv = ensureResearchDiv();
+            
+            if (!currentSourcesDiv) {
+                currentSourcesDiv = document.createElement('div');
+                currentSourcesDiv.className = 'sources-section';
+                currentSourcesDiv.innerHTML = '<div class="sources-header">📚 Sources Found</div>';
+                researchDiv.appendChild(currentSourcesDiv);
+            }
+
+            const sourceDiv = document.createElement('div');
+            sourceDiv.className = 'source-item';
+            sourceDiv.innerHTML = `
+                <div class="source-title">${escapeHtml(data.title)}</div>
+                <a href="${escapeHtml(data.url)}" target="_blank" class="source-url">${escapeHtml(data.url)}</a>
+                ${data.snippet ? `<div class="source-snippet">${escapeHtml(data.snippet)}</div>` : ''}
+            `;
+            currentSourcesDiv.appendChild(sourceDiv);
+        }
+
+        function handleContentToken(token) {
+            const researchDiv = ensureResearchDiv();
+            
+            // Add synthesis divider if this is the first content token
+            if (!currentSynthesisDiv) {
+                const divider = document.createElement('div');
+                divider.className = 'synthesis-divider';
+                researchDiv.appendChild(divider);
+                
+                currentSynthesisDiv = document.createElement('div');
+                researchDiv.appendChild(currentSynthesisDiv);
+            }
+
+            // Add token to buffer for smooth rendering
+            tokenBuffer.push(...token.split(''));
+            
+            // Start rendering loop if not already running
+            if (!isRendering) {
+                startSmoothRendering();
+            }
+        }
+
+        function startSmoothRendering() {
+            if (isRendering) return;
+            
+            isRendering = true;
+            renderingIntervalId = setInterval(() => {
+                if (tokenBuffer.length === 0) {
+                    // Buffer is empty, but keep checking in case more tokens arrive
+                    return;
+                }
+
+                // Extract characters to render
+                const charsToRender = tokenBuffer.splice(0, CHARS_PER_INTERVAL).join('');
+                
+                // Append to current text
+                const currentText = currentSynthesisDiv.getAttribute('data-text') || '';
+                const newText = currentText + charsToRender;
+                currentSynthesisDiv.setAttribute('data-text', newText);
+                
+                charsSinceLastMarkdownRender += charsToRender.length;
+                
+                // Render markdown periodically or if buffer is getting low
+                if (charsSinceLastMarkdownRender >= MARKDOWN_REFRESH_CHARS || tokenBuffer.length < 10) {
+                    currentSynthesisDiv.innerHTML = marked.parse(newText);
+                    charsSinceLastMarkdownRender = 0;
+                    
+                    // Auto-scroll
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                }
+            }, RENDER_INTERVAL_MS);
+        }
+
+        function stopSmoothRendering() {
+            if (renderingIntervalId) {
+                clearInterval(renderingIntervalId);
+                renderingIntervalId = null;
+            }
+            isRendering = false;
+            
+            // Flush any remaining characters
+            if (tokenBuffer.length > 0 && currentSynthesisDiv) {
+                const currentText = currentSynthesisDiv.getAttribute('data-text') || '';
+                const remainingText = tokenBuffer.join('');
+                const newText = currentText + remainingText;
+                currentSynthesisDiv.setAttribute('data-text', newText);
+                currentSynthesisDiv.innerHTML = marked.parse(newText);
+                tokenBuffer = [];
+                charsSinceLastMarkdownRender = 0;
+                
+                // Final auto-scroll
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }
+
+        function addMessage(text, role) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            
+            if (role === 'assistant' && text) {
+                contentDiv.innerHTML = marked.parse(text);
+            } else {
+                contentDiv.textContent = text;
+            }
+            
+            messageDiv.appendChild(contentDiv);
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            return messageDiv;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Focus input on load
+        messageInput.focus();
+    </script>
+</body>
+</html>

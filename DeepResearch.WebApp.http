@@ -1,0 +1,6 @@
+@DeepResearch.WebApp_HostAddress = http://localhost:5011
+
+GET {{DeepResearch.WebApp_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,58 @@
+using DeepResearch.WebApp.Models;
+
+namespace DeepResearch.WebApp.Interfaces;
+
+public interface IPlannerAgent
+{
+    /// <summary>
+    /// Break down user query into subtasks
+    /// </summary>
+    Task<ResearchPlan> CreatePlanAsync(string userQuery, ConversationContext context, int derpificationLevel = 100);
+}
+
+public interface ISearchAgent
+{
+    /// <summary>
+    /// Execute search plan and gather information
+    /// </summary>
+    Task<GatheredInformation> ExecuteSearchPlanAsync(ResearchPlan plan, int derpificationLevel = 100);
+}
+
+public interface ISynthesisAgent
+{
+    /// <summary>
+    /// Create comprehensive response from gathered info
+    /// </summary>
+    IAsyncEnumerable<string> SynthesizeAsync(
+        string userQuery,
+        ResearchPlan plan,
+        GatheredInformation info,
+        MemoryChunk[] relevantMemories,
+        int derpificationLevel = 100
+    );
+}
+
+public interface IReflectionAgent
+{
+    /// <summary>
+    /// Evaluate confidence in the synthesized response
+    /// </summary>
+    Task<ReflectionResult> ReflectAsync(
+        string userQuery,
+        string synthesizedResponse,
+        GatheredInformation info,
+        int derpificationLevel = 100
+    );
+}
+
+public interface IClarificationAgent
+{
+    /// <summary>
+    /// Generate clarifying questions to better understand user's research intent
+    /// </summary>
+    Task<ClarificationResult> GenerateClarifyingQuestionsAsync(
+        string userQuery,
+        ConversationContext context,
+        int derpificationLevel = 100
+    );
+}
