@@ -33,6 +33,14 @@
             max-height: 800px;
         }
 
+        @supports (-webkit-touch-callout: none) {
+            /* iOS Safari specific: account for keyboard */
+            .container {
+                height: 100vh;
+                height: -webkit-fill-available;
+            }
+        }
+
         .header {
             padding: 30px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -187,6 +195,8 @@
             padding: 15px 20px;
             border-radius: 18px;
             word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
         }
 
         .message.user .message-content {
@@ -224,6 +234,20 @@
             padding: 2px 6px;
             border-radius: 4px;
             font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .message.assistant .message-content pre {
+            overflow-x: auto;
+            background: #f7f9fc;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .message.assistant .message-content pre code {
+            background: transparent;
+            padding: 0;
         }
 
         .research-progress {
@@ -334,6 +358,7 @@
             font-size: 12px;
             text-decoration: none;
             word-break: break-all;
+            overflow-wrap: break-word;
             display: block;
             margin-bottom: 5px;
         }
@@ -534,32 +559,298 @@
 
         /* Mobile responsive styles */
         @media (max-width: 768px) {
-            .header {
-                padding: 20px;
-                padding-bottom: 25px;
+            body {
+                padding: 0;
             }
 
-            .derpification-control {
-                position: static;
-                margin-top: 20px;
-                justify-content: center;
+            .container {
+                border-radius: 0;
+                height: 100vh;
+                height: -webkit-fill-available;
+                max-height: none;
+            }
+
+            .header {
+                padding: 20px 16px;
+                border-radius: 0;
             }
 
             .header h1 {
-                font-size: 24px;
+                font-size: 22px;
+                margin-bottom: 8px;
             }
 
             .header p {
                 font-size: 13px;
+                margin-bottom: 16px;
+            }
+
+            .derpification-control {
+                position: static;
+                margin-top: 0;
+                justify-content: flex-start;
+                gap: 12px;
+                flex-wrap: wrap;
             }
 
             .brain-container {
-                width: 60px;
-                height: 60px;
+                width: 50px;
+                height: 50px;
+                order: 2;
+            }
+
+            .derp-slider-container {
+                order: 1;
+                flex: 1;
+                min-width: 200px;
+            }
+
+            .derp-slider {
+                width: 140px;
+                height: 8px;
+            }
+
+            .derp-slider::-webkit-slider-thumb {
+                width: 20px;
+                height: 20px;
+            }
+
+            .derp-slider::-moz-range-thumb {
+                width: 20px;
+                height: 20px;
+            }
+
+            .derp-label {
+                font-size: 11px;
+            }
+
+            .derp-slider-label {
+                font-size: 10px;
+                min-width: 40px;
+            }
+
+            .chat-container {
+                padding: 16px;
+            }
+
+            .message-content {
+                max-width: 92%;
+                padding: 12px 16px;
+                font-size: 15px;
+                line-height: 1.5;
+            }
+
+            .message.assistant .message-content {
+                font-size: 14px;
+                line-height: 1.6;
+            }
+
+            .message.assistant .message-content h1 {
+                font-size: 20px;
+            }
+
+            .message.assistant .message-content h2 {
+                font-size: 18px;
+            }
+
+            .message.assistant .message-content h3 {
+                font-size: 16px;
+            }
+
+            .research-progress,
+            .research-plan,
+            .clarification-section {
+                padding: 12px;
+                margin: 12px 0;
+            }
+
+            .progress-header,
+            .sources-header {
+                font-size: 14px;
+                margin-bottom: 8px;
+            }
+
+            .progress-stage {
+                padding: 6px 10px;
+                font-size: 13px;
+            }
+
+            .research-plan h4 {
+                font-size: 14px;
+                margin-bottom: 8px;
+            }
+
+            .research-plan li {
+                font-size: 13px;
+                padding: 4px 0;
+                padding-left: 18px;
+            }
+
+            .search-query {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+
+            .source-item {
+                padding: 10px;
+                margin: 6px 0;
+            }
+
+            .source-title {
+                font-size: 13px;
+            }
+
+            .source-url {
+                font-size: 11px;
+            }
+
+            .source-snippet {
+                font-size: 12px;
+            }
+
+            .clarification-header {
+                font-size: 15px;
+            }
+
+            .clarification-rationale {
+                font-size: 13px;
+            }
+
+            .clarification-question label {
+                font-size: 13px;
+            }
+
+            .clarification-input {
+                padding: 10px;
+                font-size: 14px;
+            }
+
+            .clarification-submit-btn {
+                padding: 12px;
+                font-size: 14px;
+                min-height: 44px;
+            }
+
+            .input-container {
+                padding: 12px 16px;
+            }
+
+            .input-wrapper {
+                gap: 8px;
+            }
+
+            #messageInput {
+                padding: 12px 16px;
+                font-size: 16px;
+                border-radius: 22px;
+            }
+
+            #sendBtn {
+                padding: 12px 20px;
+                font-size: 14px;
+                border-radius: 22px;
+                min-height: 44px;
+                min-width: 70px;
+            }
+
+            .synthesis-divider:after {
+                font-size: 13px;
+            }
+        }
+
+        /* Extra small devices */
+        @media (max-width: 375px) {
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .header p {
+                font-size: 12px;
+            }
+
+            .derp-slider-container {
+                min-width: 180px;
+            }
+
+            .derp-slider {
+                width: 120px;
+            }
+
+            .brain-container {
+                width: 45px;
+                height: 45px;
+            }
+
+            .message-content {
+                max-width: 95%;
+                padding: 10px 14px;
+            }
+
+            #sendBtn {
+                padding: 12px 16px;
+                min-width: 60px;
+                font-size: 13px;
+            }
+        }
+
+        /* Landscape mobile optimization */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .header {
+                padding: 12px 16px;
+            }
+
+            .header h1 {
+                font-size: 18px;
+                margin-bottom: 4px;
+            }
+
+            .header p {
+                font-size: 12px;
+                margin-bottom: 8px;
+            }
+
+            .derpification-control {
+                gap: 8px;
+            }
+
+            .brain-container {
+                width: 40px;
+                height: 40px;
             }
 
             .derp-slider {
                 width: 100px;
+            }
+
+            .chat-container {
+                padding: 12px;
+            }
+
+            .input-container {
+                padding: 8px 12px;
+            }
+        }
+
+        /* Prevent text selection on slider for better touch UX */
+        .derp-slider-container {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Improve touch targets */
+        @media (hover: none) and (pointer: coarse) {
+            .source-item {
+                min-height: 44px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+            }
+
+            .source-url {
+                padding: 4px 0;
             }
         }
     </style>
