@@ -22,7 +22,7 @@ public class SearchAgent : ISearchAgent
         _logger = logger;
     }
 
-    public async Task<GatheredInformation> ExecuteSearchPlanAsync(ResearchPlan plan, int derpificationLevel = 100)
+    public async IAsyncEnumerable<object> ExecuteSearchPlanAsync(ResearchPlan plan, int derpificationLevel = 100)
     {
         var allResults = new List<SearchResult>();
         var storedMemoryIds = new List<string>();
@@ -37,69 +37,91 @@ public class SearchAgent : ISearchAgent
         {
             _logger.LogDebug("Processing subtask: {Description}", task.Description);
 
+            SearchResult[] results;
+            Dictionary<string, string> fetchedContent;
+            
+            // Perform search with variable result count
             try
             {
-                // Perform search with variable result count
-                var results = await _searchService.SearchAsync(task.SearchQuery, resultsPerQuery);
-                
-                if (results.Length == 0)
-                {
-                    _logger.LogDebug("No results found for: {Query}", task.SearchQuery);
-                    continue;
-                }
-
-                // Fetch full webpage content in parallel with 5 second timeout
-                _logger.LogInformation("Fetching full webpage content for {Count} URLs from query: {Query}", 
-                    results.Length, task.SearchQuery);
-                var urls = results.Select(r => r.Url).ToArray();
-                var fetchedContent = await _contentFetcher.FetchContentAsync(urls, timeoutSeconds: 5);
-                _logger.LogInformation("Successfully fetched content for {Success} out of {Total} URLs", 
-                    fetchedContent.Count, urls.Length);
-
-                // Filter to only include results where content was successfully fetched
-                var successfulResults = results
-                    .Where(r => fetchedContent.ContainsKey(r.Url))
-                    .Select(r => 
-                    {
-                        r.Content = fetchedContent[r.Url];
-                        return r;
-                    })
-                    .ToArray();
-
-                if (successfulResults.Length == 0)
-                {
-                    _logger.LogWarning("Failed to fetch content for any results for: {Query}", task.SearchQuery);
-                    continue;
-                }
-
-                allResults.AddRange(successfulResults);
-
-                // Store each result in memory with full content
-                foreach (var result in successfulResults)
-                {
-                    // Use full content instead of just snippet
-                    var memoryText = $"{result.Title}\n{result.Content}\nSource: {result.Url}";
-                    var tags = new[] { "search-result", task.SearchQuery };
-
-                    var memoryId = await _memoryService.StoreMemoryAsync(
-                        memoryText,
-                        result.Url,
-                        tags
-                    );
-
-                    storedMemoryIds.Add(memoryId);
-                }
-
-                _logger.LogDebug("Fetched and stored {Count} out of {Total} results for: {Query}", 
-                    successfulResults.Length, results.Length, task.SearchQuery);
-
-                // Small delay to avoid rate limiting
-                await Task.Delay(500);
+                results = await _searchService.SearchAsync(task.SearchQuery, resultsPerQuery);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to process subtask: {Description}", task.Description);
+                _logger.LogError(ex, "Failed to search for: {Query}", task.SearchQuery);
+                continue;
             }
+            
+            if (results.Length == 0)
+            {
+                _logger.LogDebug("No results found for: {Query}", task.SearchQuery);
+                continue;
+            }
+
+            // Fetch full webpage content in parallel with 5 second timeout
+            _logger.LogInformation("Fetching full webpage content for {Count} URLs from query: {Query}", 
+                results.Length, task.SearchQuery);
+            var urls = results.Select(r => r.Url).ToArray();
+            
+            try
+            {
+                fetchedContent = await _contentFetcher.FetchContentAsync(urls, timeoutSeconds: 5);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to fetch content for: {Query}", task.SearchQuery);
+                continue;
+            }
+            
+            _logger.LogInformation("Successfully fetched content for {Success} out of {Total} URLs", 
+                fetchedContent.Count, urls.Length);
+
+            // Filter to only include results where content was successfully fetched
+            var successfulResults = results
+                .Where(r => fetchedContent.ContainsKey(r.Url))
+                .Select(r => 
+                {
+                    r.Content = fetchedContent[r.Url];
+                    return r;
+                })
+                .ToArray();
+
+            if (successfulResults.Length == 0)
+            {
+                _logger.LogWarning("Failed to fetch content for any results for: {Query}", task.SearchQuery);
+                continue;
+            }
+
+            allResults.AddRange(successfulResults);
+
+            // Store each result in memory with full content and yield it immediately
+            foreach (var result in successfulResults)
+            {
+                // Use full content instead of just snippet
+                var memoryText = $"{result.Title}\n{result.Content}\nSource: {result.Url}";
+                var tags = new[] { "search-result", task.SearchQuery };
+
+                string memoryId;
+                try
+                {
+                    memoryId = await _memoryService.StoreMemoryAsync(memoryText, result.Url, tags);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to store memory for: {Url}", result.Url);
+                    continue;
+                }
+
+                storedMemoryIds.Add(memoryId);
+                
+                // Yield the source immediately after fetching and storing
+                yield return result;
+            }
+
+            _logger.LogDebug("Fetched and stored {Count} out of {Total} results for: {Query}", 
+                successfulResults.Length, results.Length, task.SearchQuery);
+
+            // Small delay to avoid rate limiting
+            await Task.Delay(500);
         }
 
         var info = new GatheredInformation
@@ -111,7 +133,8 @@ public class SearchAgent : ISearchAgent
 
         _logger.LogInformation("Search complete: {Count} total sources gathered", info.TotalSourcesFound);
 
-        return info;
+        // Yield the final gathered information
+        yield return info;
     }
 
     private int GetResultsPerQuery(int derpificationLevel)

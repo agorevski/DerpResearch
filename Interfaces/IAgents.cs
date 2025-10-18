@@ -13,9 +13,9 @@ public interface IPlannerAgent
 public interface ISearchAgent
 {
     /// <summary>
-    /// Execute search plan and gather information
+    /// Execute search plan and gather information, yielding sources as they're fetched
     /// </summary>
-    Task<GatheredInformation> ExecuteSearchPlanAsync(ResearchPlan plan, int derpificationLevel = 100);
+    IAsyncEnumerable<object> ExecuteSearchPlanAsync(ResearchPlan plan, int derpificationLevel = 100);
 }
 
 public interface ISynthesisAgent

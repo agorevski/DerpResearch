@@ -161,13 +161,37 @@ public class OrchestratorService : IOrchestratorService
                 "",
                 conversationId,
                 "progress",
-                new ProgressUpdate("fallback", "No sources found. Switching to general knowledge mode.")
+                new ProgressUpdate("fallback", "No sources found. Using general knowledge to answer.")
             ), _jsonOptions) + "\n";
             
-            await foreach (var token in ProcessSimpleChatAsync(prompt, conversationId))
+            // Fallback to direct LLM response when no sources found
+            var messages = new List<ChatMessage>
             {
+                new ChatMessage 
+                { 
+                    Role = "system", 
+                    Content = "You are a helpful AI assistant. Provide accurate, well-structured responses based on your knowledge." 
+                }
+            };
+
+            messages.AddRange(context.RecentMessages);
+            
+            if (!context.RecentMessages.Any(m => m.Content == prompt))
+            {
+                messages.Add(new ChatMessage { Role = "user", Content = prompt });
+            }
+
+            var responseBuilder = new StringBuilder();
+            await foreach (var token in _llmService.ChatCompletionStream(messages.ToArray(), "gpt-4o"))
+            {
+                responseBuilder.Append(token);
                 yield return token;
             }
+
+            var response = responseBuilder.ToString();
+            await _memoryService.SaveMessageAsync(conversationId, "assistant", response);
+            
+            _logger.LogInformation("Completed with fallback response for conversation {ConversationId}", conversationId);
             yield break;
         }
 
@@ -284,38 +308,43 @@ public class OrchestratorService : IOrchestratorService
                     }
                 };
 
-                GatheredInformation additionalInfo;
-                try
-                {
-                    // Use SearchAgent to fetch with full webpage content
-                    additionalInfo = await _searchAgent.ExecuteSearchPlanAsync(additionalPlan, derpificationLevel);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed additional search: {Query}", searchQuery);
-                    continue;
-                }
-
-                // Filter out duplicate URLs
+                // Use SearchAgent to fetch with full webpage content and stream sources
                 var existingUrls = new HashSet<string>(allResults.Select(r => r.Url));
-                var newResults = additionalInfo.Results.Where(r => !existingUrls.Contains(r.Url)).ToArray();
+                var newResults = new List<SearchResult>();
+                GatheredInformation? additionalInfo = null;
                 
-                allResults.AddRange(newResults);
-                allMemoryIds.AddRange(additionalInfo.StoredMemoryIds);
-
-                // Yield each new source
-                foreach (var result in newResults)
+                await foreach (var item in _searchAgent.ExecuteSearchPlanAsync(additionalPlan, derpificationLevel).ConfigureAwait(false))
                 {
-                    yield return JsonSerializer.Serialize(new StreamToken(
-                        "",
-                        conversationId,
-                        "source",
-                        new SourceUpdate(result.Title, result.Url, result.Snippet)
-                    ), _jsonOptions) + "\n";
+                    if (item is SearchResult result)
+                    {
+                        // Only add if not duplicate
+                        if (!existingUrls.Contains(result.Url))
+                        {
+                            newResults.Add(result);
+                            allResults.Add(result);
+                            
+                            // Yield source immediately
+                            yield return JsonSerializer.Serialize(new StreamToken(
+                                "",
+                                conversationId,
+                                "source",
+                                new SourceUpdate(result.Title, result.Url, result.Snippet)
+                            ), _jsonOptions) + "\n";
+                        }
+                    }
+                    else if (item is GatheredInformation gatheredInfo)
+                    {
+                        additionalInfo = gatheredInfo;
+                    }
                 }
-
+                
+                if (additionalInfo != null)
+                {
+                    allMemoryIds.AddRange(additionalInfo.StoredMemoryIds);
+                }
+                
                 _logger.LogInformation("Additional search '{Query}' found {NewCount} new sources", 
-                    searchQuery, newResults.Length);
+                    searchQuery, newResults.Count);
 
                 await Task.Delay(500);
             }
@@ -395,15 +424,33 @@ public class OrchestratorService : IOrchestratorService
             ), _jsonOptions) + "\n";
         }
 
-        // Use SearchAgent which handles fetching webpage content
-        GatheredInformation info;
-        try
+        // Use SearchAgent which handles fetching webpage content and streams sources
+        GatheredInformation? info = null;
+        bool hasError = false;
+        
+        await foreach (var item in _searchAgent.ExecuteSearchPlanAsync(plan, derpificationLevel).ConfigureAwait(false))
         {
-            info = await _searchAgent.ExecuteSearchPlanAsync(plan, derpificationLevel);
+            // Check if this is a SearchResult or GatheredInformation
+            if (item is SearchResult result)
+            {
+                // Yield source immediately as it's fetched
+                yield return JsonSerializer.Serialize(new StreamToken(
+                    "",
+                    conversationId,
+                    "source",
+                    new SourceUpdate(result.Title, result.Url, result.Snippet)
+                ), _jsonOptions) + "\n";
+            }
+            else if (item is GatheredInformation gatheredInfo)
+            {
+                // This is the final result
+                info = gatheredInfo;
+            }
         }
-        catch (Exception ex)
+
+        // Ensure we have info
+        if (info == null || hasError)
         {
-            _logger.LogError(ex, "Failed to execute search plan");
             info = new GatheredInformation
             {
                 Results = Array.Empty<SearchResult>(),
@@ -412,62 +459,7 @@ public class OrchestratorService : IOrchestratorService
             };
         }
 
-        // Yield each source that was successfully fetched
-        foreach (var result in info.Results)
-        {
-            yield return JsonSerializer.Serialize(new StreamToken(
-                "",
-                conversationId,
-                "source",
-                new SourceUpdate(result.Title, result.Url, result.Snippet)
-            ), _jsonOptions) + "\n";
-        }
-
         // Yield the final result with a special prefix so it's not sent to the client
         yield return "FINAL_INFO:" + System.Text.Json.JsonSerializer.Serialize(info);
-    }
-
-    public async IAsyncEnumerable<string> ProcessSimpleChatAsync(string prompt, string conversationId)
-    {
-        _logger.LogInformation("Processing simple chat for conversation {ConversationId}", conversationId);
-
-        // Save user message
-        await _memoryService.SaveMessageAsync(conversationId, "user", prompt);
-
-        // Get conversation context
-        var context = await _memoryService.GetConversationContextAsync(conversationId);
-
-        // Build messages array
-        var messages = new List<ChatMessage>
-        {
-            new ChatMessage 
-            { 
-                Role = "system", 
-                Content = "You are a helpful AI assistant. Provide accurate, well-structured responses." 
-            }
-        };
-
-        // Add recent conversation history
-        messages.AddRange(context.RecentMessages);
-
-        // Add current user message if not already in context
-        if (!context.RecentMessages.Any(m => m.Content == prompt))
-        {
-            messages.Add(new ChatMessage { Role = "user", Content = prompt });
-        }
-
-        // Stream response
-        var responseBuilder = new StringBuilder();
-        await foreach (var token in _llmService.ChatCompletionStream(messages.ToArray(), "gpt-4o"))
-        {
-            responseBuilder.Append(token);
-            yield return token;
-        }
-
-        // Save assistant response
-        var response = responseBuilder.ToString();
-        await _memoryService.SaveMessageAsync(conversationId, "assistant", response);
-
-        _logger.LogInformation("Simple chat completed for conversation {ConversationId}", conversationId);
     }
 }

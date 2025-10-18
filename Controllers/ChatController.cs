@@ -37,14 +37,16 @@ public class ChatController : ControllerBase
         // Create or use existing conversation
         var conversationId = request.ConversationId ?? await _memoryService.CreateConversationAsync();
 
-        _logger.LogInformation("Processing chat request in {Mode} mode for conversation {ConversationId}", 
-            request.Mode, conversationId);
+        _logger.LogInformation("Processing deep research request for conversation {ConversationId}", 
+            conversationId);
 
         try
         {
-            IAsyncEnumerable<string> stream = request.Mode.ToLower() == "deep-research"
-                ? _orchestrator.ProcessDeepResearchAsync(request.Prompt, conversationId, request.DerpificationLevel, request.ClarificationAnswers)
-                : _orchestrator.ProcessSimpleChatAsync(request.Prompt, conversationId);
+            IAsyncEnumerable<string> stream = _orchestrator.ProcessDeepResearchAsync(
+                request.Prompt, 
+                conversationId, 
+                request.DerpificationLevel, 
+                request.ClarificationAnswers);
 
             await foreach (var token in stream)
             {

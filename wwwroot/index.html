@@ -160,28 +160,6 @@
             transition: opacity 0.3s ease, stroke-width 0.3s ease;
         }
 
-        .mode-selector {
-            margin-top: 15px;
-            display: flex;
-            gap: 10px;
-        }
-
-        .mode-btn {
-            padding: 8px 20px;
-            border: 2px solid white;
-            background: transparent;
-            color: white;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.3s;
-        }
-
-        .mode-btn.active {
-            background: white;
-            color: #667eea;
-        }
-
         .chat-container {
             flex: 1;
             padding: 30px;
@@ -553,6 +531,37 @@
             opacity: 0.6;
             cursor: not-allowed;
         }
+
+        /* Mobile responsive styles */
+        @media (max-width: 768px) {
+            .header {
+                padding: 20px;
+                padding-bottom: 25px;
+            }
+
+            .derpification-control {
+                position: static;
+                margin-top: 20px;
+                justify-content: center;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .header p {
+                font-size: 13px;
+            }
+
+            .brain-container {
+                width: 60px;
+                height: 60px;
+            }
+
+            .derp-slider {
+                width: 100px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -651,10 +660,6 @@
             
             <h1>🔬 De<span class="tilted-r">r</span>p Research</h1>
             <p>AI-powered research assistant with web search and memory</p>
-            <div class="mode-selector">
-                <button class="mode-btn active" data-mode="deep-research">Derp Research</button>
-                <button class="mode-btn" data-mode="simple-chat">Simple Chat</button>
-            </div>
         </div>
 
         <div class="chat-container" id="chatContainer">
@@ -708,7 +713,6 @@
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
         const typingIndicator = document.getElementById('typingIndicator');
-        const modeButtons = document.querySelectorAll('.mode-btn');
 
         // Derpification controls
         const derpSlider = document.getElementById('derpSlider');
@@ -756,15 +760,6 @@
                 wrinkle.setAttribute('opacity', opacity);
             }
         }
-
-        // Mode selector
-        modeButtons.forEach(btn => {
-            btn.addEventListener('click', () => {
-                modeButtons.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                currentMode = btn.dataset.mode;
-            });
-        });
 
         // Send message
         sendBtn.addEventListener('click', sendMessage);
