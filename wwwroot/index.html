@@ -394,6 +394,21 @@
             font-size: 14px;
         }
 
+        .reflection-footer {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #e1e8ed;
+            font-size: 12px;
+            font-style: italic;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .reflection-footer .confidence-score {
+            font-weight: 600;
+            color: #667eea;
+        }
+
         .input-container {
             padding: 20px 30px;
             background: white;
@@ -1140,6 +1155,8 @@
                                     handleSearchQuery(data.data);
                                 } else if (data.type === 'source') {
                                     handleSourceUpdate(data.data);
+                                } else if (data.type === 'reflection') {
+                                    handleReflectionUpdate(data.data);
                                 } else if (data.token) {
                                     // Regular content token
                                     handleContentToken(data.token);
@@ -1389,6 +1406,32 @@
                 ${data.snippet ? `<div class="source-snippet">${escapeHtml(data.snippet)}</div>` : ''}
             `;
             currentSourcesDiv.appendChild(sourceDiv);
+        }
+
+        function handleReflectionUpdate(data) {
+            const researchDiv = ensureResearchDiv();
+            
+            // Create reflection footer
+            const reflectionDiv = document.createElement('div');
+            reflectionDiv.className = 'reflection-footer';
+            
+            // Format confidence score as percentage
+            const confidencePercent = (data.confidenceScore * 100).toFixed(0);
+            
+            // Build reflection text
+            let reflectionText = `<span class="confidence-score">Confidence: ${confidencePercent}%</span>`;
+            
+            if (data.iterations > 1) {
+                reflectionText += ` (${data.iterations} iterations)`;
+            }
+            
+            reflectionText += ` — ${escapeHtml(data.reasoning)}`;
+            
+            reflectionDiv.innerHTML = reflectionText;
+            researchDiv.appendChild(reflectionDiv);
+            
+            // Auto-scroll to show the reflection
+            chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
         function handleContentToken(token) {

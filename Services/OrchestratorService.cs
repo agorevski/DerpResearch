@@ -360,12 +360,27 @@ public class OrchestratorService : IOrchestratorService
             yield return "\n\n---\n\n";
         }
 
-        // Log final reflection results
+        // Log final reflection results and send to frontend
         if (reflection != null)
         {
             _logger.LogInformation(
                 "Research completed after {Iterations} iteration(s). Final confidence: {Confidence:F2}",
                 iteration, reflection.ConfidenceScore);
+            
+            // Build reasoning text from identified gaps
+            var reasoning = reflection.IdentifiedGaps.Length > 0
+                ? string.Join("; ", reflection.IdentifiedGaps)
+                : reflection.ConfidenceScore >= 0.7
+                    ? "Research appears comprehensive with adequate sources and citations."
+                    : "Response may benefit from additional detail or sources.";
+            
+            // Send reflection data to frontend
+            yield return JsonSerializer.Serialize(new StreamToken(
+                "",
+                conversationId,
+                "reflection",
+                new ReflectionUpdate(reflection.ConfidenceScore, reasoning, iteration)
+            ), _jsonOptions) + "\n";
         }
 
         // Step 7: Save assistant response

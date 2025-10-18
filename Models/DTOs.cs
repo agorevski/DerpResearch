@@ -43,6 +43,12 @@ public record ClarificationUpdate(
     string Rationale
 );
 
+public record ReflectionUpdate(
+    double ConfidenceScore,
+    string Reasoning,
+    int Iterations
+);
+
 // Google Custom Search API response DTOs
 public record GoogleSearchResponse(
     SearchInformation? SearchInformation,
