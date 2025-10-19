@@ -79,6 +79,18 @@ builder.Services.AddCors(options =>
 
 // Check if mock services should be used
 var useMockServices = builder.Configuration.GetValue<bool>("UseMockServices", false);
+startupLogger.LogInformation("=== SERVICE REGISTRATION MODE: {Mode} ===", 
+    useMockServices ? "MOCK SERVICES" : "REAL SERVICES");
+
+if (useMockServices)
+{
+    var useFixedConfidence = builder.Configuration.GetValue<bool>("MockServices:UseFixedConfidence", false);
+    var fixedConfidenceScore = builder.Configuration.GetValue<float>("MockServices:FixedConfidenceScore", 0.95f);
+    startupLogger.LogInformation("Mock Configuration:");
+    startupLogger.LogInformation("  - UseFixedConfidence: {UseFixed}", useFixedConfidence);
+    startupLogger.LogInformation("  - FixedConfidenceScore: {Score}", fixedConfidenceScore);
+}
+
 try
 {
     // Register Web Content Fetcher
@@ -86,27 +98,45 @@ try
     // Register Agents
     if (useMockServices)
     {
-        startupLogger.LogInformation("Registering Mock Services ...");
+        startupLogger.LogInformation(">>> Registering MOCK Services:");
+        startupLogger.LogInformation("  ✓ MockLLMService");
         builder.Services.AddSingleton<ILLMService, MockLLMService>();
+        startupLogger.LogInformation("  ✓ MockWebContentFetcher");
         builder.Services.AddSingleton<IWebContentFetcher, MockWebContentFetcher>();
+        startupLogger.LogInformation("  ✓ MockSearchService");
         builder.Services.AddSingleton<ISearchService, MockSearchService>();
+        startupLogger.LogInformation("  ✓ MockClarificationAgent");
         builder.Services.AddSingleton<IClarificationAgent, MockClarificationAgent>();
+        startupLogger.LogInformation("  ✓ MockPlannerAgent");
         builder.Services.AddSingleton<IPlannerAgent, MockPlannerAgent>();
+        startupLogger.LogInformation("  ✓ MockSearchAgent");
         builder.Services.AddSingleton<ISearchAgent, MockSearchAgent>();
+        startupLogger.LogInformation("  ✓ MockSynthesisAgent");
         builder.Services.AddSingleton<ISynthesisAgent, MockSynthesisAgent>();
+        startupLogger.LogInformation("  ✓ MockReflectionAgent");
         builder.Services.AddSingleton<IReflectionAgent, MockReflectionAgent>();
+        startupLogger.LogInformation(">>> All MOCK services registered successfully");
     }
     else
     {
-        startupLogger.LogInformation("Registering Real Services ...");
+        startupLogger.LogInformation(">>> Registering REAL Services:");
+        startupLogger.LogInformation("  ✓ LLMService");
         builder.Services.AddSingleton<ILLMService, LLMService>();
+        startupLogger.LogInformation("  ✓ WebContentFetcher");
         builder.Services.AddSingleton<IWebContentFetcher, WebContentFetcher>();
+        startupLogger.LogInformation("  ✓ SearchService");
         builder.Services.AddSingleton<ISearchService, SearchService>();
+        startupLogger.LogInformation("  ✓ ClarificationAgent");
         builder.Services.AddSingleton<IClarificationAgent, ClarificationAgent>();
+        startupLogger.LogInformation("  ✓ PlannerAgent");
         builder.Services.AddSingleton<IPlannerAgent, PlannerAgent>();
+        startupLogger.LogInformation("  ✓ SearchAgent");
         builder.Services.AddSingleton<ISearchAgent, SearchAgent>();
+        startupLogger.LogInformation("  ✓ SynthesisAgent");
         builder.Services.AddSingleton<ISynthesisAgent, SynthesisAgent>();
+        startupLogger.LogInformation("  ✓ ReflectionAgent");
         builder.Services.AddSingleton<IReflectionAgent, ReflectionAgent>();
+        startupLogger.LogInformation(">>> All REAL services registered successfully");
     }
 
     // Register Real Memory Service (No Mock available)

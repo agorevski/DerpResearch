@@ -156,20 +156,11 @@ public class MockSearchAgent : ISearchAgent
     {
         _logger.LogInformation("Executing mock search plan with {TaskCount} tasks", plan.Subtasks.Length);
 
+        var allResults = new List<SearchResult>();
         var allStoredMemoryIds = new List<string>();
-        var taskNumber = 0;
 
         foreach (var task in plan.Subtasks)
         {
-            taskNumber++;
-
-            // Emit search query update
-            yield return new SearchQueryUpdate(
-                task.SearchQuery,
-                taskNumber,
-                plan.Subtasks.Length
-            );
-
             await Task.Delay(_random.Next(200, 400));
 
             // Perform search
@@ -183,18 +174,6 @@ public class MockSearchAgent : ISearchAgent
             var searchResults = await _searchService.SearchAsync(task.SearchQuery, maxResults);
             _logger.LogInformation("Mock search returned {Count} results for: {Query}",
                 searchResults.Length, task.SearchQuery);
-
-            // Emit each source as it's "found"
-            foreach (var result in searchResults)
-            {
-                yield return new SourceUpdate(
-                    result.Title,
-                    result.Url,
-                    result.Snippet
-                );
-
-                await Task.Delay(_random.Next(100, 200));
-            }
 
             // Fetch content for results
             var urls = searchResults.Select(r => r.Url).ToArray();
@@ -212,7 +191,7 @@ public class MockSearchAgent : ISearchAgent
                 }
             }
 
-            // Store in memory
+            // Store in memory and yield each result immediately (like real SearchAgent)
             foreach (var result in searchResults.Where(r => !string.IsNullOrEmpty(r.Content)))
             {
                 var memoryId = await _memoryService.StoreMemoryAsync(
@@ -221,15 +200,21 @@ public class MockSearchAgent : ISearchAgent
                     tags: new[] { "web-search", task.SearchQuery }
                 );
                 allStoredMemoryIds.Add(memoryId);
+                allResults.Add(result);
+                
+                // Yield SearchResult (OrchestratorService will convert to SSE source update)
+                yield return result;
+                
+                await Task.Delay(_random.Next(100, 200));
             }
         }
 
         // Emit final gathered information
         yield return new GatheredInformation
         {
-            Results = await _searchService.SearchAsync(plan.MainGoal, 10),
+            Results = allResults.ToArray(),
             StoredMemoryIds = allStoredMemoryIds.ToArray(),
-            TotalSourcesFound = allStoredMemoryIds.Count
+            TotalSourcesFound = allResults.Count
         };
     }
 }
@@ -342,11 +327,13 @@ public class MockSynthesisAgent : ISynthesisAgent
 public class MockReflectionAgent : IReflectionAgent
 {
     private readonly ILogger<MockReflectionAgent> _logger;
+    private readonly IConfiguration _configuration;
     private static readonly Random _random = new();
 
-    public MockReflectionAgent(ILogger<MockReflectionAgent> logger)
+    public MockReflectionAgent(ILogger<MockReflectionAgent> logger, IConfiguration configuration)
     {
         _logger = logger;
+        _configuration = configuration;
         _logger.LogInformation("MockReflectionAgent initialized");
     }
 
@@ -359,11 +346,25 @@ public class MockReflectionAgent : IReflectionAgent
         _logger.LogInformation("Reflecting on response quality for: {Query}", userQuery);
         await Task.Delay(_random.Next(300, 600));
 
-        // Vary confidence to test iteration logic
-        // Higher derpification = higher standards = sometimes lower confidence
-        var baseConfidence = _random.NextDouble() * 0.3 + 0.5; // 0.5 to 0.8
-        var derpAdjustment = derpificationLevel > 70 ? -0.15 : 0;
-        var confidence = Math.Max(0.4, Math.Min(1.0, baseConfidence + derpAdjustment));
+        // Check if we should use fixed confidence (for testing)
+        var useFixedConfidence = _configuration.GetValue<bool>("MockServices:UseFixedConfidence", false);
+        var fixedConfidenceScore = _configuration.GetValue<float>("MockServices:FixedConfidenceScore", 0.95f);
+
+        float confidence;
+        if (useFixedConfidence)
+        {
+            confidence = fixedConfidenceScore;
+            _logger.LogInformation("Using FIXED confidence score: {Confidence}", confidence);
+        }
+        else
+        {
+            // Vary confidence to test iteration logic
+            // Higher derpification = higher standards = sometimes lower confidence
+            var baseConfidence = _random.NextDouble() * 0.3 + 0.5; // 0.5 to 0.8
+            var derpAdjustment = derpificationLevel > 70 ? -0.15 : 0;
+            confidence = (float)Math.Max(0.4, Math.Min(1.0, baseConfidence + derpAdjustment));
+            _logger.LogInformation("Using RANDOM confidence score: {Confidence}", confidence);
+        }
 
         var needsMoreResearch = confidence < 0.7;
 

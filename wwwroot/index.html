@@ -191,7 +191,6 @@
 
         .message-content {
             display: inline-block;
-            max-width: 80%;
             padding: 15px 20px;
             border-radius: 18px;
             word-wrap: break-word;
@@ -200,11 +199,13 @@
         }
 
         .message.user .message-content {
+            max-width: 80%;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
         }
 
         .message.assistant .message-content {
+            max-width: 98%;
             background: white;
             color: #333;
             border: 1px solid #e1e8ed;
@@ -351,16 +352,20 @@
             color: #667eea;
             margin-bottom: 5px;
             font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .source-url {
             color: #666;
             font-size: 12px;
             text-decoration: none;
-            word-break: break-all;
-            overflow-wrap: break-word;
             display: block;
             margin-bottom: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .source-url:hover {
@@ -373,6 +378,11 @@
             font-size: 13px;
             line-height: 1.4;
             margin-top: 5px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .synthesis-divider {
@@ -665,8 +675,15 @@
                 padding: 16px;
             }
 
-            .message-content {
+            .message.user .message-content {
                 max-width: 92%;
+            }
+
+            .message.assistant .message-content {
+                max-width: 98%;
+            }
+
+            .message-content {
                 padding: 12px 16px;
                 line-height: 1.5;
             }
@@ -812,8 +829,15 @@
                 height: 45px;
             }
 
-            .message-content {
+            .message.user .message-content {
                 max-width: 95%;
+            }
+
+            .message.assistant .message-content {
+                max-width: 98%;
+            }
+
+            .message-content {
                 padding: 10px 14px;
             }
 
@@ -1272,8 +1296,10 @@
             `;
             researchDiv.appendChild(clarDiv);
             
-            // Auto-scroll to show the clarification questions
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+            // Scroll to bring the clarification section into view (showing the top)
+            setTimeout(() => {
+                clarDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
         }
 
         window.submitClarificationAnswers = function() {
@@ -1425,6 +1451,11 @@
             `;
             researchDiv.appendChild(planDiv);
             currentPlanDiv = planDiv;
+            
+            // Scroll to show the plan
+            setTimeout(() => {
+                planDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
         }
 
         function handleSearchQuery(data) {

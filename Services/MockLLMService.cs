@@ -198,20 +198,27 @@ public class MockLLMService : ILLMService
 
     private ReflectionResult GenerateMockReflectionResult()
     {
-        // Vary confidence to test iteration logic
-        var confidence = _random.NextDouble();
-
         return new ReflectionResult
         {
-            ConfidenceScore = confidence,
-            IdentifiedGaps = confidence < 0.7
-                ? new[] { "Need more recent data", "Missing comparative analysis" }
-                : Array.Empty<string>(),
-            SuggestedAdditionalSearches = confidence < 0.7
-                ? new[] { "latest research papers", "industry benchmarks" }
-                : Array.Empty<string>(),
-            RequiresMoreResearch = confidence < 0.7
+            ConfidenceScore = 0.95f,
+            IdentifiedGaps = new[] { "Looks good, thank you!", "Could be slightly more details" },
+            SuggestedAdditionalSearches = new[] { "latest advancements", "case studies" },
+            RequiresMoreResearch = false
         };
+        // // Vary confidence to test iteration logic
+        // var confidence = _random.NextDouble();
+
+        // return new ReflectionResult
+        // {
+        //     ConfidenceScore = confidence,
+        //     IdentifiedGaps = confidence < 0.7
+        //         ? new[] { "Need more recent data", "Missing comparative analysis" }
+        //         : Array.Empty<string>(),
+        //     SuggestedAdditionalSearches = confidence < 0.7
+        //         ? new[] { "latest research papers", "industry benchmarks" }
+        //         : Array.Empty<string>(),
+        //     RequiresMoreResearch = confidence < 0.7
+        // };
     }
 
     private ClarificationResult GenerateMockClarificationResult(string query)

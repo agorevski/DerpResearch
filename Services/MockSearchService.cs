@@ -16,6 +16,7 @@ public class MockSearchService : ISearchService
     {
         _logger.LogInformation("MockSearchService: Returning mock results for query: {Query}", query);
 
+        maxResults = 2;
         // Generate mock results based on the query
         var results = new List<SearchResult>();
         
