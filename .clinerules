@@ -1,0 +1,242 @@
+# Deep Research - Cline Development Rules
+
+## 🏗️ Architecture & Code Organization
+
+- Maintain the multi-agent architecture pattern with clear separation of concerns:
+  - **ClarificationAgent**: Generates clarifying questions to understand user intent
+  - **PlannerAgent**: Creates research plans with subtasks
+  - **SearchAgent**: Executes web searches and fetches content
+  - **SynthesisAgent**: Combines sources into comprehensive answers
+  - **ReflectionAgent**: Evaluates response quality and suggests improvements
+- Keep services stateless and inject all dependencies through constructors
+- Place interfaces in `Interfaces/` folder, implementations in their respective folders (`Agents/`, `Services/`)
+- Use the orchestrator pattern (`OrchestratorService`) to coordinate multi-agent workflows
+- Follow repository pattern with clear interface contracts
+
+## 🎯 C# & .NET Conventions
+
+- Target .NET 9.0 framework exclusively
+- Follow Microsoft's C# coding standards:
+  - PascalCase for public members, methods, and classes
+  - camelCase for private fields with underscore prefix (e.g., `_logger`, `_config`)
+  - PascalCase for properties without underscores
+- Use nullable reference types throughout - mark nullable parameters with `?`
+- Prefer dependency injection over static classes and service locator patterns
+- Use `async`/`await` consistently - never use `.Result` or `.Wait()`
+- Leverage `IAsyncEnumerable<T>` for streaming operations
+- Use modern C# features: pattern matching, record types, init-only properties
+
+## 📡 API & Streaming Guidelines
+
+- All chat/research responses MUST use Server-Sent Events (SSE) pattern
+- Stream tokens immediately for real-time user feedback - never buffer entire responses
+- Use `JsonSerializer` with `camelCase` naming policy for JSON serialization
+- Include structured progress updates during long operations:
+  - `progress`: General status updates (planning, searching, synthesizing)
+  - `source`: Individual source found with title, URL, snippet
+  - `search_query`: Current search query being executed
+  - `reflection`: Confidence scores and reasoning
+  - `clarification`: Questions that need user answers
+  - `plan`: Research plan with subtasks
+- Response format: `data: {"token":"text","conversationId":"id","type":"content"}\n`
+- Always include conversationId in streaming responses
+- Use `\n\n` separator between SSE messages
+
+## 🤖 Agent Development Standards
+
+- Each agent MUST have a single, focused responsibility
+- All agents MUST support `derpificationLevel` parameter (0-100):
+  - 0-30: Simple, concise responses with fewer sources
+  - 31-70: Balanced depth with moderate research
+  - 71-100: Comprehensive, deep research with extensive sources
+- Use structured prompts with:
+  - Clear role definition
+  - Explicit instructions
+  - Few-shot examples where helpful
+  - Output format specification (especially for JSON)
+- Include fallback mechanisms for LLM API failures
+- Return structured types using `GetStructuredOutput<T>` when possible
+- Log agent actions at Information level with relevant context
+- Handle empty or malformed LLM responses gracefully
+
+## 💾 Memory & Database Patterns
+
+- ALL conversation data MUST be persisted through `MemoryService`
+- Save both user and assistant messages with `SaveMessageAsync`
+- Use vector embeddings for semantic memory search
+- Tag memories appropriately for better retrieval:
+  - Include source type (e.g., "web-search", "synthesis", "user-query")
+  - Add descriptive tags for content categorization
+  - Include conversationId for conversation-specific context
+- Database path MUST use `/home/Data/` for Azure App Service persistence
+- Use `SimpleFaissIndex` for in-memory vector similarity search
+- Chunk large content with `TextChunker` (3000 tokens, 100 token overlap)
+- Store search results to enable citation and future retrieval
+
+## 🔍 Search & Web Content Guidelines
+
+- Cache search results in database to reduce API calls and improve performance
+- Always fetch FULL webpage content, not just snippets - use `WebContentFetcher`
+- Use `TextChunker.ChunkText()` for content longer than 3000 tokens
+- Handle web scraping failures gracefully - continue with other sources
+- Stream sources to frontend immediately as they're discovered
+- Deduplicate search results by URL to avoid redundant processing
+- Support iterative research with additional searches based on reflection
+- Rate limit web requests to avoid overwhelming target sites
+- Use DuckDuckGo HTML scraping as default (no API key required)
+- Parse search results robustly - HTML structure may change
+
+## ⚠️ Error Handling & Logging
+
+- Use `ILogger<T>` throughout for structured logging
+- Log at appropriate levels:
+  - **Information**: Normal flow, agent actions, search queries, sources found
+  - **Warning**: Degraded operation, missing optional config, using fallbacks
+  - **Error**: Failures that impact functionality, API errors
+  - **Critical**: Fatal errors that prevent startup or core functionality
+- ALWAYS include conversationId in log messages when available
+- Log LLM token counts and response times for monitoring
+- Include relevant context in log messages (e.g., query, source count, confidence)
+- Gracefully handle LLM API failures:
+  - Fall back to general knowledge when no sources found
+  - Use fallback questions/plans if structured output fails
+  - Continue operation in degraded mode when possible
+- Never expose API keys or secrets in logs
+- Log startup sequence comprehensively for debugging deployment issues
+
+## 🌐 Configuration Management
+
+- NEVER commit `appsettings.json` with actual Azure OpenAI credentials
+- Use `appsettings.example.json` as template with placeholder values
+- Support hierarchical configuration: `appsettings.json` → environment variables → Azure Key Vault
+- All configurable values MUST have sensible defaults in code
+- Required configuration sections:
+  - `AzureOpenAI:Endpoint`, `AzureOpenAI:ApiKey`
+  - `AzureOpenAI:Deployments:Chat` (gpt-4o)
+  - `AzureOpenAI:Deployments:ChatMini` (gpt-4o-mini)
+  - `AzureOpenAI:Deployments:Embedding` (text-embedding-3-large)
+  - `Memory:DatabasePath` (default: `/home/Data/deepresearch.db`)
+  - `Reflection:ConfidenceThreshold` (default: 0.7)
+  - `Reflection:MaxIterations` (default: 2)
+- Document all configuration options in README.md
+- Use environment variable format: `AzureOpenAI__ApiKey` (double underscore)
+
+## 🐳 Docker & Deployment
+
+- Container MUST listen on port 8080 (Azure Web Apps standard)
+- Use `/home` directory for persistent data in Azure App Service
+- Multi-stage Dockerfile: build stage + runtime stage
+- Include comprehensive health check endpoint at `/health`
+- Health check should verify:
+  - Application started successfully
+  - Memory service initialized
+  - Database accessible
+- Log startup sequence extensively for debugging:
+  - Environment variables (without exposing secrets)
+  - Configuration sources loaded
+  - Service registration status
+  - Database initialization progress
+- Use `ASPNETCORE_URLS=http://+:8080` in production
+- Disable HTTPS redirection in production (Azure handles at load balancer)
+- Set `ASPNETCORE_ENVIRONMENT=Production` in Azure
+- Container must run as non-root user for security
+
+## 🎨 Frontend Integration
+
+- Single-page application (SPA) pattern with `index.html`
+- Use Server-Sent Events (SSE) for real-time token streaming
+- Support both chat modes:
+  - `simple-chat`: Direct LLM conversation without research
+  - `deep-research`: Full multi-agent research workflow
+- Render Markdown with citation support using [1], [2] notation
+- Handle multi-phase workflows:
+  1. User submits query
+  2. Clarification questions generated (if needed)
+  3. User provides answers
+  4. Research executes with progress updates
+  5. Results streamed with sources and reflection
+- Display research progress indicators:
+  - Planning phase
+  - Search queries being executed
+  - Sources being fetched (show count)
+  - Synthesis in progress
+  - Reflection/confidence score
+- Make citations clickable links to original sources
+- Show confidence score with visual indicator (color-coded)
+
+## 🧪 Testing & Quality
+
+- Write unit tests for core business logic (agents, services)
+- Mock external dependencies (LLM API, search API, web fetcher)
+- Test edge cases:
+  - Empty search results
+  - Malformed LLM responses
+  - Network timeouts
+  - Invalid user input
+- Test streaming behavior with realistic delays
+- Verify citation parsing and formatting
+- Test iterative research workflow (low confidence → additional searches)
+- Validate conversation context retrieval and memory search
+
+## 📝 Code Documentation
+
+- Add XML documentation comments for public APIs
+- Document complex algorithms with inline comments
+- Explain "why" not just "what" in comments
+- Document magic numbers and configuration thresholds
+- Include examples in interface documentation
+- Keep README.md up-to-date with:
+  - Architecture diagrams
+  - Setup instructions
+  - Configuration options
+  - Deployment procedures
+  - Troubleshooting guide
+
+## 🚀 Performance Considerations
+
+- Stream responses immediately - don't wait for entire completion
+- Use connection pooling for HTTP clients
+- Cache search results for 24 hours (configurable)
+- Limit vector search to top-K results (default: 5)
+- Chunk large content to stay within token limits
+- Use mini models (gpt-4o-mini) for reflection to reduce costs
+- Implement exponential backoff for API retries
+- Set reasonable timeouts for web content fetching (5 seconds)
+- Monitor memory usage with large vector indexes
+
+## 🔒 Security Best Practices
+
+- Validate and sanitize all user input
+- Never log sensitive information (API keys, user data)
+- Use HTTPS in production (Azure handles this)
+- Implement rate limiting on API endpoints (consider for future)
+- Validate configuration at startup
+- Use Azure Key Vault for production secrets (recommended)
+- Set appropriate CORS policies for production
+- Regularly update dependencies for security patches
+- Use readonly collection types where appropriate
+
+## 📊 Monitoring & Observability
+
+- Log all agent workflow steps with timing information
+- Track LLM API usage and costs
+- Monitor reflection confidence scores over time
+- Log search result quality (sources found per query)
+- Track conversation length and context usage
+- Monitor memory service performance (search latency)
+- Log health check status changes
+- Track web content fetch success rates
+- Monitor database size and growth
+- Use Application Insights for production monitoring (recommended)
+
+## 🔄 Development Workflow
+
+- Follow Git Flow or GitHub Flow branching strategy
+- Write descriptive commit messages
+- Keep commits focused and atomic
+- Update README.md with any architectural changes
+- Test locally with Docker before deploying
+- Use feature flags for experimental features
+- Tag releases with semantic versioning
+- Maintain CHANGELOG.md for notable changes
+- Review and update .clinerules as patterns evolve
