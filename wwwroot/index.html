@@ -172,6 +172,50 @@
             transform: scale(1.2);
         }
 
+        .fresh-search-btn {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s ease;
+            opacity: 0;
+            animation: fadeInButton 0.3s ease forwards;
+        }
+
+        @keyframes fadeInButton {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fresh-search-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.6);
+            transform: translateY(-2px);
+        }
+
+        .fresh-search-btn:active {
+            transform: translateY(0);
+        }
+
+        .fresh-search-btn svg {
+            flex-shrink: 0;
+        }
+
+        .fresh-search-icon-mobile {
+            display: none;
+        }
+
+        .fresh-search-icon-desktop {
+            display: block;
+        }
+
         .brain-container {
             width: 50px;
             height: 50px;
@@ -730,6 +774,27 @@
                 min-width: 40px;
             }
 
+            /* Mobile: Smaller Fresh Search button with trash icon only */
+            .fresh-search-btn {
+                padding: 6px;
+                border-radius: 50%;
+                min-width: 36px;
+                min-height: 36px;
+                gap: 0;
+            }
+
+            .fresh-search-icon-desktop {
+                display: none;
+            }
+
+            .fresh-search-icon-mobile {
+                display: block;
+            }
+
+            .fresh-search-text {
+                display: none;
+            }
+
             .chat-container {
                 padding: 16px;
             }
@@ -1105,6 +1170,16 @@
                         <span class="derp-slider-label">Smart</span>
                     </div>
                 </div>
+                <button id="freshSearchBtn" class="fresh-search-btn" style="display: none;">
+                    <svg class="fresh-search-icon-desktop" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M14 8C14 11.3137 11.3137 14 8 14C4.68629 14 2 11.3137 2 8C2 4.68629 4.68629 2 8 2C9.84871 2 11.5151 2.8643 12.6 4.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M12 1V4.5H8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <svg class="fresh-search-icon-mobile" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 6h18M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span class="fresh-search-text">Fresh Search</span>
+                </button>
             </div>
         </div>
 
@@ -1159,6 +1234,7 @@
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
         const typingIndicator = document.getElementById('typingIndicator');
+        const freshSearchBtn = document.getElementById('freshSearchBtn');
 
         // Derpification controls
         const derpSlider = document.getElementById('derpSlider');
@@ -1497,6 +1573,9 @@
             stageDiv.className = 'progress-stage';
             stageDiv.textContent = data.message;
             currentProgressDiv.appendChild(stageDiv);
+            
+            // Show Fresh Search button when research starts
+            showFreshSearchButton();
         }
 
         function handlePlanUpdate(data) {
@@ -1780,6 +1859,55 @@
                 ticking = true;
             }
         });
+
+        // Fresh Search button functionality
+        function showFreshSearchButton() {
+            if (freshSearchBtn.style.display === 'none') {
+                freshSearchBtn.style.display = 'flex';
+            }
+        }
+
+        function hideFreshSearchButton() {
+            freshSearchBtn.style.display = 'none';
+        }
+
+        function clearChatAndStartFresh() {
+            // Clear all messages except the welcome message
+            const messages = chatContainer.querySelectorAll('.message');
+            messages.forEach((message, index) => {
+                if (index > 0) { // Keep first message (welcome message)
+                    message.remove();
+                }
+            });
+
+            // Reset conversation state
+            conversationId = null;
+            
+            // Reset research tracking variables
+            currentResearchDiv = null;
+            currentProgressDiv = null;
+            currentPlanDiv = null;
+            currentQueriesDiv = null;
+            currentSourcesDiv = null;
+            currentSynthesisDiv = null;
+            
+            // Stop any ongoing rendering
+            stopSmoothRendering();
+            tokenBuffer = [];
+            charsSinceLastMarkdownRender = 0;
+            
+            // Hide the button
+            hideFreshSearchButton();
+            
+            // Focus input
+            messageInput.focus();
+            
+            // Scroll to top
+            chatContainer.scrollTop = 0;
+        }
+
+        // Fresh Search button click handler
+        freshSearchBtn.addEventListener('click', clearChatAndStartFresh);
 
         // Focus input on load
         messageInput.focus();
