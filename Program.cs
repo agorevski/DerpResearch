@@ -77,46 +77,46 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Register LLM Service with error handling
+// Check if mock services should be used
+var useMockServices = builder.Configuration.GetValue<bool>("UseMockServices", false);
 try
 {
-    startupLogger.LogInformation("Registering LLM Service...");
-    builder.Services.AddSingleton<ILLMService, LLMService>();
-    startupLogger.LogInformation("LLM Service registered successfully");
-}
-catch (Exception ex)
-{
-    startupLogger.LogCritical(ex, "Failed to register LLM Service: {Message}", ex.Message);
-    throw;
-}
+    // Register Web Content Fetcher
+    // Register Search Service
+    // Register Agents
+    if (useMockServices)
+    {
+        startupLogger.LogInformation("Registering Mock Services ...");
+        builder.Services.AddSingleton<ILLMService, MockLLMService>();
+        builder.Services.AddSingleton<IWebContentFetcher, MockWebContentFetcher>();
+        builder.Services.AddSingleton<ISearchService, MockSearchService>();
+        builder.Services.AddSingleton<IClarificationAgent, MockClarificationAgent>();
+        builder.Services.AddSingleton<IPlannerAgent, MockPlannerAgent>();
+        builder.Services.AddSingleton<ISearchAgent, MockSearchAgent>();
+        builder.Services.AddSingleton<ISynthesisAgent, MockSynthesisAgent>();
+        builder.Services.AddSingleton<IReflectionAgent, MockReflectionAgent>();
+    }
+    else
+    {
+        startupLogger.LogInformation("Registering Real Services ...");
+        builder.Services.AddSingleton<ILLMService, LLMService>();
+        builder.Services.AddSingleton<IWebContentFetcher, WebContentFetcher>();
+        builder.Services.AddSingleton<ISearchService, SearchService>();
+        builder.Services.AddSingleton<IClarificationAgent, ClarificationAgent>();
+        builder.Services.AddSingleton<IPlannerAgent, PlannerAgent>();
+        builder.Services.AddSingleton<ISearchAgent, SearchAgent>();
+        builder.Services.AddSingleton<ISynthesisAgent, SynthesisAgent>();
+        builder.Services.AddSingleton<IReflectionAgent, ReflectionAgent>();
+    }
 
-// Register Memory Service with error handling
-try
-{
-    startupLogger.LogInformation("Registering Memory Service...");
+    // Register Real Memory Service (No Mock available)
     builder.Services.AddSingleton<IMemoryService, MemoryService>();
-    startupLogger.LogInformation("Memory Service registered successfully");
 }
 catch (Exception ex)
 {
-    startupLogger.LogCritical(ex, "Failed to register Memory Service: {Message}", ex.Message);
+    startupLogger.LogCritical(ex, "Failed to register some service: {Message}", ex.Message);
     throw;
 }
-
-// Register Web Content Fetcher
-builder.Services.AddSingleton<IWebContentFetcher, WebContentFetcher>();
-
-// Register Search Service (use mock in Debug mode for testing)
-// builder.Services.AddSingleton<ISearchService, MockSearchService>();
-builder.Services.AddSingleton<ISearchService, SearchService>();
-
-// Register Agents
-builder.Services.AddSingleton<IClarificationAgent, ClarificationAgent>();
-builder.Services.AddSingleton<IPlannerAgent, PlannerAgent>();
-builder.Services.AddSingleton<ISearchAgent, SearchAgent>();
-builder.Services.AddSingleton<ISynthesisAgent, SynthesisAgent>();
-builder.Services.AddSingleton<IReflectionAgent, ReflectionAgent>();
-
 // Register Orchestrator
 builder.Services.AddSingleton<IOrchestratorService, OrchestratorService>();
 

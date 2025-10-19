@@ -123,6 +123,248 @@ DeepResearch.WebApp/
    https://localhost:5001
    ```
 
+## 🧪 Testing with Mock Services
+
+To test the UX without hitting live Azure OpenAI or web services, the application includes comprehensive mock implementations of all external dependencies.
+
+### Why Use Mock Services?
+
+- **Zero Cost**: No Azure OpenAI API charges during development
+- **No API Keys Required**: Test without configuring external services
+- **Consistent Behavior**: Deterministic responses for reliable testing
+- **Fast Iteration**: Instant responses without network latency
+- **Offline Development**: Work without internet connectivity
+- **Demo Mode**: Perfect for presentations and demos
+
+### Enabling Mock Mode
+
+#### Method 1: Configuration File
+
+Edit `appsettings.json` or `appsettings.Development.json`:
+
+```json
+{
+  "UseMockServices": true
+}
+```
+
+#### Method 2: Environment Variable
+
+Set the environment variable before running:
+
+**Windows (CMD):**
+```cmd
+set UseMockServices=true
+dotnet run
+```
+
+**Windows (PowerShell):**
+```powershell
+$env:UseMockServices="true"
+dotnet run
+```
+
+**Linux/macOS:**
+```bash
+export UseMockServices=true
+dotnet run
+```
+
+#### Method 3: Command Line
+
+Pass as a command-line argument:
+
+```bash
+dotnet run --UseMockServices=true
+```
+
+### Mock Service Behavior
+
+When mock mode is enabled, the following services are replaced with simulated versions:
+
+#### MockLLMService
+- Streams realistic text responses word-by-word
+- Generates contextual answers based on query keywords
+- Returns structured JSON for plans, reflections, and clarifications
+- Produces deterministic embeddings (same input = same output)
+- Simulates realistic API latency (100-500ms)
+
+#### MockSearchService
+- Returns 3-5 mock search results per query
+- Generates relevant titles and snippets based on search terms
+- No actual web requests or external API calls
+- Instant response times
+
+#### MockWebContentFetcher
+- Generates realistic article content in multiple formats:
+  - Technical documentation
+  - Blog posts
+  - Research papers
+  - Tutorials
+  - General articles
+- Content adapts to the search query topic
+- Simulates network delays (100-500ms)
+- Returns 2000-5000 characters per URL
+
+#### Mock Agents
+All five agents (Clarification, Planner, Search, Synthesis, Reflection) use mock implementations:
+
+- **MockClarificationAgent**: Generates 2-4 relevant questions
+- **MockPlannerAgent**: Creates research plans with 2-5 subtasks
+- **MockSearchAgent**: Orchestrates mock searches with realistic timing
+- **MockSynthesisAgent**: Streams comprehensive answers with citations
+- **MockReflectionAgent**: Returns confidence scores (varying for iteration testing)
+
+### Testing the Complete Workflow
+
+1. **Enable mock mode** using any method above
+
+2. **Start the application:**
+   ```bash
+   dotnet run
+   ```
+
+3. **Look for confirmation** in the console output:
+   ```
+   === MOCK MODE ENABLED - Using simulated services for testing ===
+   MockLLMService initialized - responses will be simulated
+   MockWebContentFetcher initialized - will return simulated content
+   MockSearchService: Returning mock results for query
+   ```
+
+4. **Open your browser** to `https://localhost:5001`
+
+5. **Test Deep Research Mode:**
+   - Enter: "Compare neural networks and decision trees"
+   - Watch the multi-phase workflow:
+     - Planning phase with subtasks
+     - Search queries being executed
+     - Sources being discovered (with realistic delays)
+     - Synthesis with citations [1], [2], [3]
+     - Reflection with confidence score
+
+6. **Test Simple Chat Mode:**
+   - Switch mode in the UI
+   - Ask: "Explain transformer architecture"
+   - Get instant streamed response
+
+### What Gets Mocked vs. What's Real
+
+**Mocked (Simulated):**
+- ✅ Azure OpenAI API calls (LLM completions, embeddings)
+- ✅ Web search (DuckDuckGo, Google)
+- ✅ Web content fetching (HTTP requests)
+- ✅ All agent reasoning (plans, synthesis, reflection)
+
+**Real (Actual Implementation):**
+- ✅ SQLite database storage
+- ✅ Vector embeddings and similarity search
+- ✅ Memory service (conversation history)
+- ✅ SSE streaming infrastructure
+- ✅ Frontend UI and interactions
+
+### Mock Data Characteristics
+
+**Derpification Level Awareness:**
+The mock services respect the `derpificationLevel` parameter:
+
+- **Level 0-30** (Simple): 1-2 subtasks, concise responses, 3 sources
+- **Level 31-70** (Balanced): 2-4 subtasks, moderate detail, 5 sources  
+- **Level 71-100** (Deep): 4-5 subtasks, comprehensive responses, 10 sources
+
+**Realistic Timing:**
+- Search queries: 200-400ms delay
+- Content fetching: 100-500ms per URL
+- LLM responses: 20-80ms per word
+- Reflection: 300-600ms analysis
+
+**Confidence Variation:**
+MockReflectionAgent randomly varies confidence scores to test the iteration logic. Sometimes it will return low confidence (< 0.7) triggering additional research rounds.
+
+### Use Cases for Mock Mode
+
+#### Frontend Development
+Test UI components and streaming behavior without backend dependencies.
+
+```bash
+# Terminal 1: Run backend in mock mode
+$env:UseMockServices="true"
+dotnet run
+
+# Terminal 2: Make frontend changes and see instant feedback
+```
+
+#### UX Testing
+Evaluate the user experience of the multi-agent research workflow.
+
+#### Demo Presentations
+Run live demos without worrying about API rate limits or costs.
+
+#### CI/CD Integration
+Run automated tests without external service dependencies:
+
+```yaml
+# .github/workflows/test.yml
+- name: Run Integration Tests
+  env:
+    UseMockServices: true
+  run: dotnet test
+```
+
+#### Offline Development
+Continue development without internet access or when APIs are down.
+
+### Switching Back to Real Services
+
+To disable mock mode and use real Azure OpenAI services:
+
+1. **Remove or set to false** in `appsettings.json`:
+   ```json
+   {
+     "UseMockServices": false
+   }
+   ```
+
+2. **Unset the environment variable:**
+   ```bash
+   # PowerShell
+   Remove-Item Env:UseMockServices
+   
+   # Linux/macOS
+   unset UseMockServices
+   ```
+
+3. **Ensure Azure OpenAI is configured:**
+   - Valid endpoint URL
+   - Valid API key
+   - Correct deployment names
+
+4. **Restart the application**
+
+The console will show:
+```
+Registering LLM Service...
+Registering WebContentFetcher...
+Registering SearchService...
+```
+
+### Troubleshooting Mock Mode
+
+**Mock mode not activating:**
+- Check spelling: `UseMockServices` (case-sensitive)
+- Verify configuration source order
+- Look for warning in console output
+
+**Unexpected real API calls:**
+- Ensure environment variable is set
+- Check appsettings.json doesn't override
+- Restart application after config changes
+
+**Performance too slow/fast:**
+- Mock services use random delays for realism
+- Adjust delays in mock service source code if needed
+- Real services will have different timing characteristics
+
 ## 🎮 Usage
 
 ### Deep Research Mode
