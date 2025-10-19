@@ -46,25 +46,28 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border-radius: 20px 20px 0 0;
-            position: relative;
+            text-align: center;
         }
 
         .header h1 {
             font-size: 28px;
             margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
         }
 
         .header p {
             opacity: 0.9;
             font-size: 14px;
+            margin-bottom: 20px;
         }
 
         .derpification-control {
-            position: absolute;
-            top: 20px;
-            right: 30px;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 15px;
         }
 
@@ -99,7 +102,7 @@
         }
 
         .derp-slider {
-            width: 120px;
+            width: 240px;
             height: 6px;
             -webkit-appearance: none;
             appearance: none;
@@ -141,11 +144,12 @@
         }
 
         .brain-container {
-            width: 70px;
-            height: 70px;
+            width: 50px;
+            height: 50px;
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-shrink: 0;
         }
 
         .brain-svg {
@@ -502,8 +506,10 @@
 
         .tilted-r {
             display: inline-block;
-            transform: rotate(15deg) translateX(-4px) translateY(2px);
+            transform: rotate(15deg) translateX(-0.03em) translateY(0.03em);
             transform-origin: bottom center;
+            margin-left: -0.60em;
+            margin-right: -0.40em;
         }
 
         .clarification-section {
@@ -621,34 +627,29 @@
 
             .header h1 {
                 margin-bottom: 8px;
-            }
-
-            .header p {
-                margin-bottom: 16px;
-            }
-
-            .derpification-control {
-                position: static;
-                margin-top: 0;
-                justify-content: flex-start;
-                gap: 12px;
                 flex-wrap: wrap;
             }
 
+            .header p {
+                margin-bottom: 12px;
+            }
+
+            .derpification-control {
+                gap: 12px;
+            }
+
             .brain-container {
-                width: 50px;
-                height: 50px;
-                order: 2;
+                width: 40px;
+                height: 40px;
             }
 
             .derp-slider-container {
-                order: 1;
                 flex: 1;
-                min-width: 200px;
+                min-width: 180px;
             }
 
             .derp-slider {
-                width: 140px;
+                width: 280px;
                 height: 10px;
             }
 
@@ -821,7 +822,7 @@
             }
 
             .derp-slider {
-                width: 120px;
+                width: 240px;
             }
 
             .brain-container {
@@ -874,7 +875,7 @@
             }
 
             .derp-slider {
-                width: 100px;
+                width: 200px;
             }
 
             .chat-container {
@@ -952,15 +953,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <div class="derpification-control">
-                <div class="derp-slider-container">
-                    <div class="derp-label">Derpification</div>
-                    <div class="derp-slider-wrapper">
-                        <span class="derp-slider-label left">Derp</span>
-                        <input type="range" min="0" max="100" value="100" class="derp-slider" id="derpSlider">
-                        <span class="derp-slider-label">Smart</span>
-                    </div>
-                </div>
+            <h1>
                 <div class="brain-container">
                     <svg class="brain-svg" id="brainSvg" viewBox="0 0 120 100" xmlns="http://www.w3.org/2000/svg">
                         <!-- Brain base shape - more organic human brain shape -->
@@ -1041,10 +1034,20 @@
                         <path d="M 71 60 Q 73 58, 76 60" stroke="#E91E8C" stroke-width="1" fill="none" opacity="0.2"/>
                     </svg>
                 </div>
-            </div>
+                De<span class="tilted-r">r</span>p Research
+            </h1>
+            <p>Dial your AI from derp to deep - you control the brain power</p>
             
-            <h1>🔬 De<span class="tilted-r">r</span>p Research</h1>
-            <p>AI-powered research assistant with web search and memory</p>
+            <div class="derpification-control">
+                <div class="derp-slider-container">
+                    <div class="derp-label">Derpification</div>
+                    <div class="derp-slider-wrapper">
+                        <span class="derp-slider-label left">Derp</span>
+                        <input type="range" min="0" max="100" value="100" class="derp-slider" id="derpSlider">
+                        <span class="derp-slider-label">Smart</span>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="chat-container" id="chatContainer">
