@@ -1,4 +1,10 @@
-# Deep Research - Cline Development Rules
+# Cline development Rules
+
+## General Rules
+
+- Always build and test the project after completing a series of changes
+  - Build with ```dotnet build```
+  - Test using ```dotnet test```
 
 ## 🏗️ Architecture & Code Organization
 

@@ -89,6 +89,17 @@ public class LLMService : ILLMService
         string deploymentName = "gpt-4o")
     {
         var deployment = _config[$"AzureOpenAI:Deployments:{deploymentName}"] ?? deploymentName;
+        
+        // Log configuration details for debugging
+        var endpoint = _config["AzureOpenAI:Endpoint"];
+        var apiKey = _config["AzureOpenAI:ApiKey"];
+        var maskedKey = apiKey != null && apiKey.Length > 8 
+            ? $"{apiKey.Substring(0, 4)}...{apiKey.Substring(apiKey.Length - 4)}" 
+            : "NOT_SET";
+        
+        _logger.LogInformation("ChatCompletion - Deployment requested: {RequestedDeployment}, Resolved: {ResolvedDeployment}, Endpoint: {Endpoint}, ApiKey: {MaskedKey}",
+            deploymentName, deployment, endpoint, maskedKey);
+        
         var chatClient = _client.GetChatClient(deployment);
 
         var chatMessages = messages.Select(m =>
