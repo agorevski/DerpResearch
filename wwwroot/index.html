@@ -414,6 +414,9 @@
             background: white;
             border-top: 1px solid #e1e8ed;
             border-radius: 0 0 20px 20px;
+            position: sticky;
+            bottom: 0;
+            z-index: 10;
         }
 
         .input-wrapper {
@@ -572,6 +575,22 @@
             cursor: not-allowed;
         }
 
+        /* Fluid typography - smoother scaling */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: clamp(20px, 5vw, 24px);
+            }
+
+            .header p {
+                font-size: clamp(12px, 3.5vw, 14px);
+            }
+
+            .message-content {
+                font-size: clamp(14px, 4vw, 16px);
+                line-height: 1.6;
+            }
+        }
+
         /* Mobile responsive styles */
         @media (max-width: 768px) {
             body {
@@ -591,12 +610,10 @@
             }
 
             .header h1 {
-                font-size: 22px;
                 margin-bottom: 8px;
             }
 
             .header p {
-                font-size: 13px;
                 margin-bottom: 16px;
             }
 
@@ -622,17 +639,17 @@
 
             .derp-slider {
                 width: 140px;
-                height: 8px;
+                height: 10px;
             }
 
             .derp-slider::-webkit-slider-thumb {
-                width: 20px;
-                height: 20px;
+                width: 24px;
+                height: 24px;
             }
 
             .derp-slider::-moz-range-thumb {
-                width: 20px;
-                height: 20px;
+                width: 24px;
+                height: 24px;
             }
 
             .derp-label {
@@ -651,13 +668,7 @@
             .message-content {
                 max-width: 92%;
                 padding: 12px 16px;
-                font-size: 15px;
                 line-height: 1.5;
-            }
-
-            .message.assistant .message-content {
-                font-size: 14px;
-                line-height: 1.6;
             }
 
             .message.assistant .message-content h1 {
@@ -748,6 +759,9 @@
 
             .input-container {
                 padding: 12px 16px;
+                /* Ensure input stays visible above keyboard */
+                position: sticky;
+                bottom: 0;
             }
 
             .input-wrapper {
@@ -756,8 +770,9 @@
 
             #messageInput {
                 padding: 12px 16px;
-                font-size: 16px;
+                font-size: 16px; /* Prevents iOS zoom on focus */
                 border-radius: 22px;
+                -webkit-appearance: none; /* Remove iOS styling */
             }
 
             #sendBtn {
@@ -766,6 +781,7 @@
                 border-radius: 22px;
                 min-height: 44px;
                 min-width: 70px;
+                flex-shrink: 0; /* Prevent button from shrinking */
             }
 
             .synthesis-divider:after {
@@ -866,7 +882,46 @@
 
             .source-url {
                 padding: 4px 0;
+                min-height: 44px;
+                display: flex;
+                align-items: center;
             }
+
+            /* Larger touch targets for interactive elements */
+            button, .clarification-submit-btn {
+                min-height: 48px;
+            }
+
+            .clarification-input {
+                min-height: 48px;
+            }
+        }
+
+        /* Reduced motion support */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* Focus visible styles for accessibility */
+        *:focus-visible {
+            outline: 2px solid #667eea;
+            outline-offset: 2px;
+        }
+
+        /* Better code block handling on mobile */
+        .message.assistant .message-content pre {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            max-width: 100%;
+        }
+
+        .message.assistant .message-content code {
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
     </style>
 </head>
@@ -1534,6 +1589,83 @@
             div.textContent = text;
             return div.innerHTML;
         }
+
+        // Smart auto-scroll: pause if user is manually scrolling
+        let userIsScrolling = false;
+        let scrollTimeout;
+        let lastScrollPosition = 0;
+
+        chatContainer.addEventListener('scroll', () => {
+            clearTimeout(scrollTimeout);
+            
+            const currentScroll = chatContainer.scrollTop;
+            const maxScroll = chatContainer.scrollHeight - chatContainer.clientHeight;
+            
+            // User scrolled up manually
+            if (currentScroll < lastScrollPosition && currentScroll < maxScroll - 100) {
+                userIsScrolling = true;
+            } else if (currentScroll >= maxScroll - 10) {
+                // User scrolled back to bottom
+                userIsScrolling = false;
+            }
+            
+            lastScrollPosition = currentScroll;
+            
+            // Reset after 1 second of no scrolling
+            scrollTimeout = setTimeout(() => {
+                if (chatContainer.scrollTop >= maxScroll - 10) {
+                    userIsScrolling = false;
+                }
+            }, 1000);
+        });
+
+        // Enhanced auto-scroll that respects user scrolling
+        function smartAutoScroll() {
+            if (!userIsScrolling) {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }
+
+        // Mobile keyboard handling
+        let originalHeight = window.innerHeight;
+        
+        window.addEventListener('resize', () => {
+            const currentHeight = window.innerHeight;
+            const heightDiff = originalHeight - currentHeight;
+            
+            // Keyboard likely opened (height decreased by more than 150px)
+            if (heightDiff > 150) {
+                setTimeout(() => {
+                    messageInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 100);
+            } else if (Math.abs(heightDiff) < 50) {
+                // Keyboard closed, update original height
+                originalHeight = currentHeight;
+            }
+        });
+
+        // Prevent iOS double-tap zoom on buttons
+        let lastTouchEnd = 0;
+        sendBtn.addEventListener('touchend', (e) => {
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+                e.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, { passive: false });
+
+        // Haptic feedback for mobile (where supported)
+        function triggerHaptic(style = 'light') {
+            if ('vibrate' in navigator) {
+                navigator.vibrate(style === 'light' ? 10 : style === 'medium' ? 20 : 30);
+            }
+        }
+
+        // Add haptic feedback to slider
+        derpSlider.addEventListener('input', () => triggerHaptic('light'));
+
+        // Add haptic feedback to send button
+        sendBtn.addEventListener('click', () => triggerHaptic('medium'));
 
         // Focus input on load
         messageInput.focus();
