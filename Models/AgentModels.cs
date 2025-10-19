@@ -23,7 +23,7 @@ public class GatheredInformation
 
 public class ReflectionResult
 {
-    public double ConfidenceScore { get; set; }
+    public float ConfidenceScore { get; set; }
     public string[] IdentifiedGaps { get; set; } = Array.Empty<string>();
     public string[] SuggestedAdditionalSearches { get; set; } = Array.Empty<string>();
     public bool RequiresMoreResearch { get; set; }

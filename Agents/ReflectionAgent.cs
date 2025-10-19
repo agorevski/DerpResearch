@@ -136,28 +136,28 @@ Provide your evaluation:";
         return count;
     }
 
-    private double CalculateHeuristicConfidence(int citations, int wordCount, int sourcesAvailable)
+    private float CalculateHeuristicConfidence(int citations, int wordCount, int sourcesAvailable)
     {
-        double score = 0.5; // Base score
+        float score = 0.5f; // Base score
 
         // Citation factor (0-0.3 points)
         if (citations > 0)
         {
-            score += Math.Min(0.3, citations * 0.05);
+            score += Math.Min(0.3f, citations * 0.05f);
         }
 
         // Word count factor (0-0.2 points)
         if (wordCount >= 100)
         {
-            score += Math.Min(0.2, (wordCount / 500.0) * 0.2);
+            score += Math.Min(0.2f, (wordCount / 500.0f) * 0.2f);
         }
 
         // Sources available factor
         if (sourcesAvailable >= 5)
         {
-            score += 0.1;
+            score += 0.1f;
         }
 
-        return Math.Min(1.0, score);
+        return Math.Min(1.0f, score);
     }
 }
