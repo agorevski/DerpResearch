@@ -47,6 +47,15 @@
             color: white;
             border-radius: 20px 20px 0 0;
             text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            transition: padding 0.3s ease, border-radius 0.3s ease;
+        }
+
+        .header.compact {
+            padding: 12px 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
         }
 
         .header h1 {
@@ -56,12 +65,27 @@
             align-items: center;
             justify-content: center;
             gap: 12px;
+            transition: font-size 0.3s ease, margin-bottom 0.3s ease;
+        }
+
+        .header.compact h1 {
+            font-size: 20px;
+            margin-bottom: 0;
         }
 
         .header p {
             opacity: 0.9;
             font-size: 14px;
             margin-bottom: 20px;
+            transition: opacity 0.3s ease, max-height 0.3s ease, margin-bottom 0.3s ease;
+            max-height: 50px;
+            overflow: hidden;
+        }
+
+        .header.compact p {
+            opacity: 0;
+            max-height: 0;
+            margin-bottom: 0;
         }
 
         .derpification-control {
@@ -69,6 +93,11 @@
             align-items: center;
             justify-content: center;
             gap: 15px;
+            transition: transform 0.3s ease;
+        }
+
+        .header.compact .derpification-control {
+            transform: scale(0.85);
         }
 
         .derp-slider-container {
@@ -150,6 +179,12 @@
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
+            transition: width 0.3s ease, height 0.3s ease;
+        }
+
+        .header.compact .brain-container {
+            width: 35px;
+            height: 35px;
         }
 
         .brain-svg {
@@ -625,13 +660,31 @@
                 border-radius: 0;
             }
 
+            .header.compact {
+                padding: 10px 12px;
+            }
+
             .header h1 {
                 margin-bottom: 8px;
                 flex-wrap: wrap;
             }
 
+            .header.compact h1 {
+                font-size: clamp(16px, 4vw, 18px);
+                margin-bottom: 0;
+            }
+
             .header p {
                 margin-bottom: 12px;
+                transition: opacity 0.3s ease, max-height 0.3s ease, margin-bottom 0.3s ease !important;
+                max-height: 50px;
+                overflow: hidden;
+            }
+
+            .header.compact p {
+                opacity: 0 !important;
+                max-height: 0 !important;
+                margin-bottom: 0 !important;
             }
 
             .derpification-control {
@@ -641,6 +694,11 @@
             .brain-container {
                 width: 40px;
                 height: 40px;
+            }
+
+            .header.compact .brain-container {
+                width: 30px;
+                height: 30px;
             }
 
             .derp-slider-container {
@@ -1700,6 +1758,28 @@
 
         // Add haptic feedback to send button
         sendBtn.addEventListener('click', () => triggerHaptic('medium'));
+
+        // Sticky header scroll detection
+        const header = document.querySelector('.header');
+        let lastKnownScrollPosition = 0;
+        let ticking = false;
+
+        chatContainer.addEventListener('scroll', () => {
+            lastKnownScrollPosition = chatContainer.scrollTop;
+
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    // Add compact class when scrolled past 50px
+                    if (lastKnownScrollPosition > 50) {
+                        header.classList.add('compact');
+                    } else {
+                        header.classList.remove('compact');
+                    }
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        });
 
         // Focus input on load
         messageInput.focus();

@@ -164,6 +164,21 @@
 - Make citations clickable links to original sources
 - Show confidence score with visual indicator (color-coded)
 
+### Sticky Header UX
+- Header MUST use `position: sticky` to remain visible during scroll
+- Implement scroll detection on chat container (threshold: 50px)
+- Apply `.compact` class dynamically based on scroll position
+- Compact state should minimize screen real estate:
+  - Reduce padding (desktop: 30px → 12px, mobile: 20px → 10px)
+  - Shrink heading font size (desktop: 28px → 20px, mobile: responsive clamp)
+  - Hide subtitle completely (opacity: 0, max-height: 0)
+  - Scale down brain SVG (desktop: 50px → 35px, mobile: 40px → 30px)
+  - Scale derpification controls to 85%
+- Use CSS transitions (0.3s ease) for smooth size changes
+- Use `requestAnimationFrame` for performant scroll detection
+- Mobile: Add `!important` flags to ensure compact styles override defaults
+- Maintain accessibility and touch targets (44px minimum on mobile)
+
 ## 🧪 Testing & Quality
 
 - Write unit tests for core business logic (agents, services)
