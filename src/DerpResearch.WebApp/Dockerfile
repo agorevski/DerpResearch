@@ -1,17 +1,17 @@
-# Multi-stage Dockerfile for DeepResearch.WebApp
+# Multi-stage Dockerfile for DerpResearch.WebApp
 # Stage 1: Build
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
 # Copy csproj and restore dependencies (layer caching)
-COPY DeepResearch.WebApp.csproj .
-RUN dotnet restore
+COPY src/DerpResearch.WebApp/DerpResearch.WebApp.csproj src/DerpResearch.WebApp/
+RUN dotnet restore src/DerpResearch.WebApp/DerpResearch.WebApp.csproj
 
 # Copy remaining source files
-COPY . .
+COPY src/DerpResearch.WebApp/ src/DerpResearch.WebApp/
 
 # Build and publish
-RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish src/DerpResearch.WebApp/DerpResearch.WebApp.csproj -c Release -o /app/publish /p:UseAppHost=false
 
 # Stage 2: Runtime
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
@@ -43,4 +43,4 @@ ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
 
 # Run the application
-ENTRYPOINT ["dotnet", "DeepResearch.WebApp.dll"]
+ENTRYPOINT ["dotnet", "DerpResearch.WebApp.dll"]

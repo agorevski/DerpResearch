@@ -81,15 +81,23 @@ User Query → Planner Agent → Search Agent → Memory Storage
 ## 📁 Project Structure
 
 ```folder
-DeepResearch.WebApp/
-├── Controllers/          # SSE streaming API
-├── Services/            # Core business logic
-├── Agents/              # Specialized AI agents
-├── Memory/              # Database & vector search
-├── Models/              # DTOs and entities
-├── Interfaces/          # Service contracts
-├── wwwroot/             # Frontend SPA
-└── docs/                # Documentation
+DerpResearch/
+├── src/
+│   └── DerpResearch.WebApp/     # Main application
+│       ├── Controllers/          # SSE streaming API
+│       ├── Services/             # Core business logic
+│       ├── Agents/               # Specialized AI agents
+│       ├── Memory/               # Database & vector search
+│       ├── Models/               # DTOs and entities
+│       ├── Interfaces/           # Service contracts
+│       └── wwwroot/              # Frontend SPA
+├── tests/
+│   └── DerpResearch.Tests/      # Test project
+│       ├── Unit/                 # Unit tests
+│       ├── Integration/          # Integration tests
+│       └── UI/                   # UI tests (Playwright)
+├── docs/                         # Documentation
+└── DerpResearch.sln             # Solution file
 ```
 
 ## 🎮 Usage

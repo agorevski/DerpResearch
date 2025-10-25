@@ -30,7 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DeepResearch.WebApp.csproj" />
+    <ProjectReference Include="..\..\src\DerpResearch.WebApp\DerpResearch.WebApp.csproj" />
   </ItemGroup>
 
 </Project>
