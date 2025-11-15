@@ -108,6 +108,14 @@ public class DatabaseInitializer
                 FOREIGN KEY(ConversationId) REFERENCES Conversations(Id)
             );
 
+            -- Vector store table for persistent embeddings
+            CREATE TABLE IF NOT EXISTS VectorStore (
+                VectorId INTEGER PRIMARY KEY,
+                Embedding BLOB NOT NULL,
+                Dimension INTEGER NOT NULL,
+                CreatedAt TEXT NOT NULL
+            );
+
             -- Create indexes for performance
             CREATE INDEX IF NOT EXISTS idx_messages_conversation 
                 ON Messages(ConversationId, Timestamp);
@@ -123,6 +131,9 @@ public class DatabaseInitializer
             
             CREATE INDEX IF NOT EXISTS idx_clarification_conversation 
                 ON ClarificationQuestions(ConversationId);
+            
+            CREATE INDEX IF NOT EXISTS idx_vector_store_created 
+                ON VectorStore(CreatedAt);
         ";
 
         _logger?.LogInformation("Executing table creation commands...");

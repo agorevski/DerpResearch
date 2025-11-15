@@ -9,7 +9,7 @@ namespace DeepResearch.WebApp.Services;
 public class MemoryService : IMemoryService
 {
     private readonly DatabaseInitializer _dbInitializer;
-    private readonly SimpleFaissIndex _faissIndex;
+    private readonly PersistentFaissIndex _faissIndex;
     private readonly ILLMService _llmService;
     private readonly ILogger<MemoryService> _logger;
     private readonly int _topK;
@@ -27,7 +27,8 @@ public class MemoryService : IMemoryService
         var dbLogger = loggerFactory.CreateLogger<DatabaseInitializer>();
         _dbInitializer = new DatabaseInitializer(dbPath, dbLogger);
         
-        _faissIndex = new SimpleFaissIndex();
+        var indexLogger = loggerFactory.CreateLogger<PersistentFaissIndex>();
+        _faissIndex = new PersistentFaissIndex(dimension: 3072, logger: indexLogger);
         _llmService = llmService;
         _topK = int.Parse(config["Memory:TopKResults"] ?? "5");
         
@@ -41,6 +42,12 @@ public class MemoryService : IMemoryService
         {
             await _dbInitializer.InitializeAsync();
             _logger.LogInformation("Database initialized successfully");
+            
+            // Load existing vectors from database
+            await using var connection = _dbInitializer.CreateConnection();
+            await connection.OpenAsync();
+            await _faissIndex.LoadFromDatabaseAsync(connection);
+            _logger.LogInformation("Vector index loaded successfully with {Count} vectors", _faissIndex.Count);
         }
         catch (Exception ex)
         {
@@ -77,7 +84,7 @@ public class MemoryService : IMemoryService
             try
             {
                 var embedding = await _llmService.GetEmbedding(chunk);
-                var vectorId = _faissIndex.AddVector(embedding);
+                var vectorId = await _faissIndex.AddVectorAsync(embedding, connection);
 
                 var command = connection.CreateCommand();
                 command.CommandText = @"

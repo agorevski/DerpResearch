@@ -284,61 +284,34 @@ public async Task<(int[] ids, float[] distances)> SearchAsync(
 
 ## State Management Anti-Patterns
 
-### 6. In-Memory State Loss 🔴
+### 6. ~~In-Memory State Loss~~ ✅ FIXED
 
-**Location**: `Memory/SimpleFaissIndex.cs`
+**Status**: ✅ **RESOLVED** (2025-11-15)
 
-**Issue**: All vector embeddings stored in memory with no persistence mechanism:
+**Solution Implemented**:
+- Created `PersistentFaissIndex` that stores vectors in SQLite BLOB storage
+- Vectors are persisted to `VectorStore` table on addition
+- Vectors are automatically loaded from database on application startup
+- Full round-trip persistence ensures no data loss on restart
+- Thread-safe implementation with proper locking
+- Comprehensive test coverage (12 tests, all passing)
 
-```csharp
-public class SimpleFaissIndex
-{
-    private readonly ConcurrentDictionary<int, float[]> _vectors;
-    
-    public int AddVector(float[] embedding)
-    {
-        var id = _nextId++;
-        _vectors[id] = embedding; // Lost on restart
-        return id;
-    }
-}
-```
+**Key Changes**:
+1. **New Table**: Added `VectorStore` table to database schema
+2. **New Class**: `PersistentFaissIndex` replaces `SimpleFaissIndex` in production
+3. **Updated Service**: `MemoryService` now uses persistent index and loads vectors on initialization
+4. **No Breaking Changes**: SimpleFaissIndex kept for reference, but no longer used
 
-**Impact**:
+**Benefits**:
+- ✅ Vectors survive application restarts
+- ✅ No need to regenerate expensive embeddings
+- ✅ Simple SQLite-based solution (no additional infrastructure)
+- ✅ Maintains existing performance characteristics
+- ✅ Easy migration path to dedicated vector DB if needed
 
-- Complete data loss on application restart
-- Cannot scale horizontally (each instance has different state)
-- Memory consumption grows unbounded
-- No disaster recovery capability
-- Expensive to rebuild embeddings
+**See**: Implementation in `src/DerpResearch.WebApp/Memory/PersistentFaissIndex.cs`
 
-**Recommended Solution**:
-
-```csharp
-public interface IVectorStore
-{
-    Task<int> AddVectorAsync(float[] embedding, string metadata);
-    Task<SearchResult[]> SearchAsync(float[] query, int topK);
-}
-
-// Option 1: SQLite with vector extension
-public class SqliteVectorStore : IVectorStore
-{
-    // Use sqlite-vss or sqlite-vec extension
-}
-
-// Option 2: Azure Cognitive Search
-public class AzureSearchVectorStore : IVectorStore
-{
-    // Use Azure Cognitive Search vector search
-}
-
-// Option 3: Qdrant, Pinecone, Weaviate
-public class QdrantVectorStore : IVectorStore
-{
-    // Use dedicated vector database
-}
-```
+**Original Issue**: All vector embeddings stored in memory with no persistence mechanism, causing complete data loss on application restart.
 
 ---
 
@@ -1315,7 +1288,7 @@ public class DeepResearchWorkflowTests
 | 3 | ~~Fire-and-Forget Task~~ | ✅ FIXED | Program.cs | Silent failures, race conditions |
 | 4 | Inconsistent ConfigureAwait | 🟡 High | Multiple | Potential deadlocks |
 | 5 | Sync in Async | 🟢 Medium | SimpleFaissIndex | Thread pool starvation |
-| 6 | In-Memory State Loss | 🔴 Critical | SimpleFaissIndex | Data loss on restart |
+| 6 | ~~In-Memory State Loss~~ | ✅ FIXED | PersistentFaissIndex | Vectors persisted to SQLite |
 | 7 | Static Mutable State | 🟡 High | OrchestratorService | Testing difficulties |
 | 8 | Magic Strings | 🟡 High | Multiple | No type safety, typos |
 | 9 | Magic Numbers | 🟢 Medium | Multiple | Hard to tune |
@@ -1340,7 +1313,7 @@ public class DeepResearchWorkflowTests
 ### Immediate (Critical 🔴)
 
 1. ~~Fix fire-and-forget database initialization~~ ✅ **COMPLETED**
-2. Implement vector persistence (replace in-memory index)
+2. ~~Implement vector persistence (replace in-memory index)~~ ✅ **COMPLETED**
 3. ~~Add circuit breaker for external calls~~ ✅ **COMPLETED**
 4. Break down OrchestratorService god object
 
@@ -1385,13 +1358,15 @@ public class DeepResearchWorkflowTests
 
 **Critical Issues Resolved:**
 - ✅ **Issue #3**: Fire-and-Forget Database Initialization → `DatabaseInitializationService`
+- ✅ **Issue #6**: In-Memory State Loss → `PersistentFaissIndex` with SQLite BLOB storage
 - ✅ **Issue #15**: No Circuit Breaker Pattern → `ResilientSearchService` with circuit breaker, retry, and rate limiting
 - ✅ **Issue #17**: No Rate Limiting → Integrated into `ResilientSearchService`
 
 **Test Coverage Added:**
 - 3 tests for `DatabaseInitializationService`
 - 11 tests for `ResilientSearchService` and `CircuitBreaker`
-- All 14 tests passing
+- 12 tests for `PersistentFaissIndex`
+- All 26 tests passing
 
 **For complete details, see**: [CRITICAL-FIXES-SUMMARY.md](./CRITICAL-FIXES-SUMMARY.md)
 
