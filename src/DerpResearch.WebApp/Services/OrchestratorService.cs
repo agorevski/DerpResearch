@@ -21,9 +21,6 @@ public class OrchestratorService : IOrchestratorService
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
-    
-    // Store clarification questions temporarily per conversation
-    private static readonly Dictionary<string, string[]> _conversationClarifications = new();
 
     public OrchestratorService(
         IClarificationAgent clarificationAgent,
@@ -87,8 +84,8 @@ public class OrchestratorService : IOrchestratorService
 
             _logger.LogInformation("Generated {Count} clarifying questions. Waiting for user answers.", clarification.Questions.Length);
             
-            // Store questions for Phase 2
-            _conversationClarifications[conversationId] = clarification.Questions;
+            // Store questions in database for Phase 2
+            await _memoryService.StoreClarificationQuestionsAsync(conversationId, clarification.Questions);
             
             // STOP HERE - Wait for user to provide answers
             // Frontend should re-submit with clarificationAnswers populated
@@ -98,16 +95,14 @@ public class OrchestratorService : IOrchestratorService
         // Step 1.6: PHASE 2 - Enhance prompt with clarification answers
         _logger.LogInformation("Phase 2: Processing with {Count} clarification answers", clarificationAnswers.Length);
         
-        // Retrieve the questions from Phase 1
-        string[] questions = Array.Empty<string>();
-        if (_conversationClarifications.TryGetValue(conversationId, out var storedQuestions))
-        {
-            questions = storedQuestions;
-            _conversationClarifications.Remove(conversationId); // Clean up
-        }
+        // Retrieve the questions from Phase 1 (from database)
+        var questions = await _memoryService.GetClarificationQuestionsAsync(conversationId) ?? Array.Empty<string>();
         
         var enhancedPrompt = EnhancePromptWithClarifications(prompt, questions, clarificationAnswers);
         _logger.LogInformation("Enhanced prompt created from {Count} Q&A pairs", questions.Length);
+        
+        // Clean up clarification questions after use
+        await _memoryService.ClearClarificationQuestionsAsync(conversationId);
 
         // Step 2: Create research plan (using enhanced prompt)
         yield return JsonSerializer.Serialize(new StreamToken(
@@ -345,8 +340,6 @@ public class OrchestratorService : IOrchestratorService
                 
                 _logger.LogInformation("Additional search '{Query}' found {NewCount} new sources", 
                     searchQuery, newResults.Count);
-
-                await Task.Delay(500);
             }
 
             yield return JsonSerializer.Serialize(new StreamToken(

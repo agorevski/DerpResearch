@@ -283,4 +283,70 @@ public class MemoryService : IMemoryService
         var deleted = await command.ExecuteNonQueryAsync();
         _logger.LogInformation("Compacted {Count} old memories", deleted);
     }
+
+    public async Task StoreClarificationQuestionsAsync(string conversationId, string[] questions)
+    {
+        await using var connection = _dbInitializer.CreateConnection();
+        await connection.OpenAsync();
+
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+            INSERT INTO ClarificationQuestions (Id, ConversationId, Questions, CreatedAt)
+            VALUES ($id, $conversationId, $questions, $createdAt)
+        ";
+        command.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
+        command.Parameters.AddWithValue("$conversationId", conversationId);
+        command.Parameters.AddWithValue("$questions", JsonSerializer.Serialize(questions));
+        command.Parameters.AddWithValue("$createdAt", DateTime.UtcNow.ToString("O"));
+
+        await command.ExecuteNonQueryAsync();
+        _logger.LogInformation("Stored {Count} clarification questions for conversation {ConversationId}", 
+            questions.Length, conversationId);
+    }
+
+    public async Task<string[]?> GetClarificationQuestionsAsync(string conversationId)
+    {
+        await using var connection = _dbInitializer.CreateConnection();
+        await connection.OpenAsync();
+
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT Questions
+            FROM ClarificationQuestions
+            WHERE ConversationId = $conversationId
+            ORDER BY CreatedAt DESC
+            LIMIT 1
+        ";
+        command.Parameters.AddWithValue("$conversationId", conversationId);
+
+        await using var reader = await command.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            var questionsJson = reader.GetString(0);
+            var questions = JsonSerializer.Deserialize<string[]>(questionsJson);
+            _logger.LogInformation("Retrieved {Count} clarification questions for conversation {ConversationId}", 
+                questions?.Length ?? 0, conversationId);
+            return questions;
+        }
+
+        _logger.LogInformation("No clarification questions found for conversation {ConversationId}", conversationId);
+        return null;
+    }
+
+    public async Task ClearClarificationQuestionsAsync(string conversationId)
+    {
+        await using var connection = _dbInitializer.CreateConnection();
+        await connection.OpenAsync();
+
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+            DELETE FROM ClarificationQuestions
+            WHERE ConversationId = $conversationId
+        ";
+        command.Parameters.AddWithValue("$conversationId", conversationId);
+
+        var deleted = await command.ExecuteNonQueryAsync();
+        _logger.LogInformation("Cleared {Count} clarification question record(s) for conversation {ConversationId}", 
+            deleted, conversationId);
+    }
 }

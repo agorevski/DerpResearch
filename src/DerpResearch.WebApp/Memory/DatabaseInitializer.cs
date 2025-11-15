@@ -99,6 +99,15 @@ public class DatabaseInitializer
                 Timestamp TEXT NOT NULL
             );
 
+            -- Clarification questions table
+            CREATE TABLE IF NOT EXISTS ClarificationQuestions (
+                Id TEXT PRIMARY KEY,
+                ConversationId TEXT NOT NULL,
+                Questions TEXT NOT NULL,
+                CreatedAt TEXT NOT NULL,
+                FOREIGN KEY(ConversationId) REFERENCES Conversations(Id)
+            );
+
             -- Create indexes for performance
             CREATE INDEX IF NOT EXISTS idx_messages_conversation 
                 ON Messages(ConversationId, Timestamp);
@@ -111,6 +120,9 @@ public class DatabaseInitializer
             
             CREATE INDEX IF NOT EXISTS idx_search_cache_timestamp 
                 ON SearchCache(Timestamp);
+            
+            CREATE INDEX IF NOT EXISTS idx_clarification_conversation 
+                ON ClarificationQuestions(ConversationId);
         ";
 
         _logger?.LogInformation("Executing table creation commands...");

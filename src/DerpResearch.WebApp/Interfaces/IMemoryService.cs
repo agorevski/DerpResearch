@@ -38,4 +38,19 @@ public interface IMemoryService
     /// Compact old memories (maintenance)
     /// </summary>
     Task CompactMemoriesAsync(DateTime olderThan);
+
+    /// <summary>
+    /// Store clarification questions for a conversation
+    /// </summary>
+    Task StoreClarificationQuestionsAsync(string conversationId, string[] questions);
+
+    /// <summary>
+    /// Retrieve clarification questions for a conversation
+    /// </summary>
+    Task<string[]?> GetClarificationQuestionsAsync(string conversationId);
+
+    /// <summary>
+    /// Clear clarification questions after they've been answered
+    /// </summary>
+    Task ClearClarificationQuestionsAsync(string conversationId);
 }
