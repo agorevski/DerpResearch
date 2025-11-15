@@ -79,8 +79,11 @@ builder.Services.AddCors(options =>
 
 // Check if mock services should be used
 var useMockServices = builder.Configuration.GetValue<bool>("UseMockServices", false);
+var useResilientServices = builder.Configuration.GetValue<bool>("UseResilientServices", true);
 startupLogger.LogInformation("=== SERVICE REGISTRATION MODE: {Mode} ===", 
     useMockServices ? "MOCK SERVICES" : "REAL SERVICES");
+startupLogger.LogInformation("=== RESILIENCE PATTERNS: {Enabled} ===", 
+    useResilientServices ? "ENABLED" : "DISABLED");
 
 if (useMockServices)
 {
@@ -122,10 +125,32 @@ try
         startupLogger.LogInformation(">>> Registering REAL Services:");
         startupLogger.LogInformation("  ✓ LLMService");
         builder.Services.AddSingleton<ILLMService, LLMService>();
-        startupLogger.LogInformation("  ✓ WebContentFetcher");
-        builder.Services.AddSingleton<IWebContentFetcher, WebContentFetcher>();
-        startupLogger.LogInformation("  ✓ SearchService");
-        builder.Services.AddSingleton<ISearchService, SearchService>();
+        
+        // Register services with optional resilience wrappers
+        if (useResilientServices)
+        {
+            startupLogger.LogInformation("  ✓ WebContentFetcher (with resilience)");
+            builder.Services.AddSingleton<WebContentFetcher>();
+            builder.Services.AddSingleton<IWebContentFetcher>(sp =>
+                new ResilientWebContentFetcher(
+                    sp.GetRequiredService<WebContentFetcher>(),
+                    sp.GetRequiredService<ILogger<ResilientWebContentFetcher>>()));
+            
+            startupLogger.LogInformation("  ✓ SearchService (with circuit breaker & rate limiting)");
+            builder.Services.AddSingleton<SearchService>();
+            builder.Services.AddSingleton<ISearchService>(sp =>
+                new ResilientSearchService(
+                    sp.GetRequiredService<SearchService>(),
+                    sp.GetRequiredService<ILogger<ResilientSearchService>>()));
+        }
+        else
+        {
+            startupLogger.LogInformation("  ✓ WebContentFetcher (without resilience)");
+            builder.Services.AddSingleton<IWebContentFetcher, WebContentFetcher>();
+            startupLogger.LogInformation("  ✓ SearchService (without resilience)");
+            builder.Services.AddSingleton<ISearchService, SearchService>();
+        }
+        
         startupLogger.LogInformation("  ✓ ClarificationAgent");
         builder.Services.AddSingleton<IClarificationAgent, ClarificationAgent>();
         startupLogger.LogInformation("  ✓ PlannerAgent");
@@ -149,6 +174,9 @@ catch (Exception ex)
 }
 // Register Orchestrator
 builder.Services.AddSingleton<IOrchestratorService, OrchestratorService>();
+
+// Register database initialization as a hosted background service
+builder.Services.AddHostedService<DatabaseInitializationService>();
 
 startupLogger.LogInformation("Building application...");
 WebApplication app;
@@ -179,35 +207,9 @@ lifetime.ApplicationStopped.Register(() =>
     app.Logger.LogWarning("=== Application Stopped ===");
 });
 
-// Initialize database in background (non-blocking)
-var initHealthCheck = app.Services.GetRequiredService<InitializationHealthCheck>();
-_ = Task.Run(async () =>
-{
-    try
-    {
-        app.Logger.LogInformation("Starting background initialization...");
-        app.Logger.LogInformation("Retrieving MemoryService from DI container...");
-        
-        var memoryService = app.Services.GetRequiredService<IMemoryService>();
-        app.Logger.LogInformation("MemoryService retrieved successfully");
-        
-        app.Logger.LogInformation("Calling InitializeAsync()...");
-        await memoryService.InitializeAsync();
-        
-        app.Logger.LogInformation("Memory service initialized successfully");
-        initHealthCheck.MarkAsHealthy();
-    }
-    catch (Exception ex)
-    {
-        app.Logger.LogError(ex, "Failed to initialize memory service: {Message}. Stack: {Stack}", 
-            ex.Message, ex.StackTrace);
-        app.Logger.LogError("Inner exception: {InnerException}", ex.InnerException?.Message);
-        initHealthCheck.MarkAsFailed(ex);
-        
-        // Don't crash the app - let it run in degraded mode
-        app.Logger.LogWarning("Application will continue in degraded mode without memory service");
-    }
-});
+// Database initialization now handled by DatabaseInitializationService (BackgroundService)
+// No more fire-and-forget Task.Run - proper lifecycle management
+app.Logger.LogInformation("Database initialization will be handled by DatabaseInitializationService");
 
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
@@ -276,41 +278,4 @@ catch (Exception ex)
     throw;
 }
 
-// Custom health check for initialization status
-public class InitializationHealthCheck : IHealthCheck
-{
-    private bool _isHealthy = false;
-    private string _description = "Initializing...";
-    private Exception? _exception = null;
-
-    public void MarkAsHealthy()
-    {
-        _isHealthy = true;
-        _description = "Initialization completed successfully";
-    }
-
-    public void MarkAsFailed(Exception ex)
-    {
-        _isHealthy = false;
-        _description = $"Initialization failed: {ex.Message}";
-        _exception = ex;
-    }
-
-    public Task<HealthCheckResult> CheckHealthAsync(
-        HealthCheckContext context,
-        CancellationToken cancellationToken = default)
-    {
-        if (_isHealthy)
-        {
-            return Task.FromResult(HealthCheckResult.Healthy(_description));
-        }
-        
-        if (_exception != null)
-        {
-            return Task.FromResult(HealthCheckResult.Unhealthy(_description, _exception));
-        }
-
-        // Still initializing - return degraded so Azure knows we're working on it
-        return Task.FromResult(HealthCheckResult.Degraded(_description));
-    }
-}
+// InitializationHealthCheck moved to DatabaseInitializationService.cs

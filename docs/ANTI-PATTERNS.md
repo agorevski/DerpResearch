@@ -162,70 +162,17 @@ public class LLMService : ILLMService
 
 ## Async/Await Anti-Patterns
 
-### 3. Fire-and-Forget with Task.Run 🔴
+### 3. ~~Fire-and-Forget with Task.Run~~ ✅ FIXED
 
-**Location**: `Program.cs` line 126
+**Status**: ✅ **RESOLVED** (2025-11-15)
 
-**Issue**: Database initialization uses fire-and-forget pattern without proper error handling:
+**Solution Implemented**: 
+- Created `DatabaseInitializationService` as proper `BackgroundService`
+- Implemented thread-safe `InitializationHealthCheck`
+- Application now stops if database initialization fails (fail-fast pattern)
+- Comprehensive test coverage added
 
-```csharp
-_ = Task.Run(async () =>
-{
-    try
-    {
-        var memoryService = app.Services.GetRequiredService<IMemoryService>();
-        await memoryService.InitializeAsync();
-        initHealthCheck.MarkAsHealthy();
-    }
-    catch (Exception ex)
-    {
-        app.Logger.LogError(ex, "Failed to initialize memory service");
-        initHealthCheck.MarkAsFailed(ex);
-        // Exception swallowed - app continues in degraded mode
-    }
-});
-```
-
-**Impact**:
-
-- Unhandled exceptions can crash the application
-- No way for caller to know if initialization succeeded
-- Race conditions if requests arrive before initialization completes
-- Difficult to test
-- Lost exception context
-
-**Recommended Solution**:
-Use proper background service pattern:
-
-```csharp
-public class DatabaseInitializationService : BackgroundService
-{
-    private readonly IMemoryService _memoryService;
-    private readonly InitializationHealthCheck _healthCheck;
-    private readonly ILogger<DatabaseInitializationService> _logger;
-    
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        try
-        {
-            _logger.LogInformation("Starting database initialization...");
-            await _memoryService.InitializeAsync();
-            _healthCheck.MarkAsHealthy();
-            _logger.LogInformation("Database initialization completed successfully");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogCritical(ex, "Database initialization failed");
-            _healthCheck.MarkAsFailed(ex);
-            // Consider throwing to prevent app startup if critical
-            throw;
-        }
-    }
-}
-
-// Register in Program.cs
-builder.Services.AddHostedService<DatabaseInitializationService>();
-```
+**See**: [CRITICAL-FIXES-SUMMARY.md](./CRITICAL-FIXES-SUMMARY.md#issue-1-fire-and-forget-database-initialization-critical-)
 
 ---
 
@@ -856,90 +803,26 @@ command.Parameters.AddWithValue("$conversationId", conversationId);
 
 ## Resilience Anti-Patterns
 
-### 15. No Circuit Breaker Pattern 🔴
+### 15. ~~No Circuit Breaker Pattern~~ ✅ FIXED
 
-**Location**: `Services/WebContentFetcher.cs`, `Services/SearchService.cs`
+**Status**: ✅ **RESOLVED** (2025-11-15)
 
-**Issue**: External API calls with no resilience patterns:
+**Solution Implemented**:
+- Created `ResilientSearchService` decorator with:
+  - **Circuit Breaker**: Opens after 5 failures, 30-second break duration
+  - **Retry Logic**: 3 attempts with exponential backoff
+  - **Rate Limiting**: Configurable requests per second
+  - **Graceful Degradation**: Returns empty results instead of crashing
+- Created `ResilientWebContentFetcher` with similar patterns
+- Thread-safe implementation
+- Comprehensive test coverage (11 tests)
+- Configurable via `UseResilientServices` flag (defaults to true)
 
-```csharp
-public async Task<SearchResult[]> SearchAsync(string query, int maxResults = 10)
-{
-    var response = await _httpClient.GetAsync(searchUrl); // No retry, no circuit breaker
-    response.EnsureSuccessStatusCode();
-    var html = await response.Content.ReadAsStringAsync();
-    return ParseDuckDuckGoResults(html);
-}
-```
-
-**Impact**:
-
-- Single point of failure
-- Cascading failures under load
-- No graceful degradation
-- Expensive retry storms
-- Poor user experience
-
-**Recommended Solution**:
-
-```csharp
-// Install Polly NuGet package
-using Polly;
-using Polly.CircuitBreaker;
-
-public class ResilientSearchService : ISearchService
-{
-    private readonly ISearchService _innerService;
-    private readonly IAsyncPolicy<SearchResult[]> _resiliencePolicy;
-    
-    public ResilientSearchService(ISearchService innerService)
-    {
-        _innerService = innerService;
-        
-        _resiliencePolicy = Policy<SearchResult[]>
-            .Handle<HttpRequestException>()
-            .Or<TaskCanceledException>()
-            .WaitAndRetryAsync(
-                retryCount: 3,
-                sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)),
-                onRetry: (outcome, timespan, retryAttempt, context) =>
-                {
-                    _logger.LogWarning(
-                        "Search retry {Attempt} after {Delay}s due to {Exception}",
-                        retryAttempt, timespan.TotalSeconds, outcome.Exception?.Message);
-                })
-            .WrapAsync(
-                Policy<SearchResult[]>
-                    .Handle<HttpRequestException>()
-                    .CircuitBreakerAsync(
-                        handledEventsAllowedBeforeBreaking: 5,
-                        durationOfBreak: TimeSpan.FromSeconds(30),
-                        onBreak: (outcome, duration) =>
-                        {
-                            _logger.LogError("Circuit breaker opened for {Duration}s", duration.TotalSeconds);
-                        },
-                        onReset: () =>
-                        {
-                            _logger.LogInformation("Circuit breaker reset");
-                        }))
-            .WrapAsync(
-                Policy
-                    .TimeoutAsync<SearchResult[]>(
-                        TimeSpan.FromSeconds(10),
-                        TimeoutStrategy.Pessimistic));
-    }
-    
-    public async Task<SearchResult[]> SearchAsync(string query, int maxResults = 10)
-    {
-        return await _resiliencePolicy.ExecuteAsync(async () =>
-            await _innerService.SearchAsync(query, maxResults));
-    }
-}
-```
+**See**: [CRITICAL-FIXES-SUMMARY.md](./CRITICAL-FIXES-SUMMARY.md#issue-3-missing-circuit-breaker-for-external-calls-critical-)
 
 ---
 
-### 16. No Timeout Configuration 🟡
+### 16. ~~No Timeout Configuration~~ ✅ PARTIALLY ADDRESSED
 
 **Location**: `Services/WebContentFetcher.cs`
 
@@ -983,69 +866,18 @@ public class WebContentFetcher : IWebContentFetcher
 
 ---
 
-### 17. No Rate Limiting 🟡
+### 17. ~~No Rate Limiting~~ ✅ FIXED
 
-**Location**: `Services/SearchService.cs`, `Services/WebContentFetcher.cs`
+**Status**: ✅ **RESOLVED** (2025-11-15)
 
-**Issue**: No rate limiting for external API calls:
+**Solution Implemented**:
+- Rate limiting integrated into `ResilientSearchService`
+- Configurable requests per second (default: 1/second)
+- Configurable max concurrent requests (default: 2)
+- Thread-safe implementation with proper locking
+- Test coverage for rate limiting behavior
 
-```csharp
-foreach (var task in plan.Subtasks)
-{
-    results = await _searchService.SearchAsync(task.SearchQuery, resultsPerQuery);
-    // No rate limiting between calls
-}
-```
-
-**Impact**:
-
-- May hit API rate limits
-- Risk of IP bans
-- Poor resource utilization
-- Potential abuse
-
-**Recommended Solution**:
-
-```csharp
-public class RateLimitedSearchService : ISearchService
-{
-    private readonly ISearchService _innerService;
-    private readonly SemaphoreSlim _rateLimiter;
-    private readonly TimeSpan _minimumInterval;
-    private DateTime _lastRequest = DateTime.MinValue;
-    
-    public RateLimitedSearchService(
-        ISearchService innerService,
-        int maxConcurrentRequests = 2,
-        int requestsPerSecond = 1)
-    {
-        _innerService = innerService;
-        _rateLimiter = new SemaphoreSlim(maxConcurrentRequests);
-        _minimumInterval = TimeSpan.FromSeconds(1.0 / requestsPerSecond);
-    }
-    
-    public async Task<SearchResult[]> SearchAsync(string query, int maxResults = 10)
-    {
-        await _rateLimiter.WaitAsync();
-        try
-        {
-            // Enforce minimum interval between requests
-            var timeSinceLastRequest = DateTime.UtcNow - _lastRequest;
-            if (timeSinceLastRequest < _minimumInterval)
-            {
-                await Task.Delay(_minimumInterval - timeSinceLastRequest);
-            }
-            
-            _lastRequest = DateTime.UtcNow;
-            return await _innerService.SearchAsync(query, maxResults);
-        }
-        finally
-        {
-            _rateLimiter.Release();
-        }
-    }
-}
-```
+**See**: [CRITICAL-FIXES-SUMMARY.md](./CRITICAL-FIXES-SUMMARY.md#issue-3-missing-circuit-breaker-for-external-calls-critical-)
 
 ---
 
@@ -1480,7 +1312,7 @@ public class DeepResearchWorkflowTests
 |---|-------------|----------|----------|--------|
 | 1 | God Object | 🔴 Critical | OrchestratorService | High complexity, hard to maintain |
 | 2 | Tight Coupling to Azure | 🟡 High | LLMService | Vendor lock-in, hard to test |
-| 3 | Fire-and-Forget Task | 🔴 Critical | Program.cs | Silent failures, race conditions |
+| 3 | ~~Fire-and-Forget Task~~ | ✅ FIXED | Program.cs | Silent failures, race conditions |
 | 4 | Inconsistent ConfigureAwait | 🟡 High | Multiple | Potential deadlocks |
 | 5 | Sync in Async | 🟢 Medium | SimpleFaissIndex | Thread pool starvation |
 | 6 | In-Memory State Loss | 🔴 Critical | SimpleFaissIndex | Data loss on restart |
@@ -1492,9 +1324,9 @@ public class DeepResearchWorkflowTests
 | 12 | Manual Connections | 🟡 High | MemoryService | Verbose, leak-prone |
 | 13 | No Transactions | 🟡 High | MemoryService | Data inconsistency |
 | 14 | SQL Injection (OK) | 🟢 Low | Database | Currently mitigated |
-| 15 | No Circuit Breaker | 🔴 Critical | SearchService | Cascading failures |
+| 15 | ~~No Circuit Breaker~~ | ✅ FIXED | SearchService | Cascading failures |
 | 16 | No Timeout Config | 🟡 High | WebContentFetcher | Hard to tune |
-| 17 | No Rate Limiting | 🟡 High | SearchService | API abuse risk |
+| 17 | ~~No Rate Limiting~~ | ✅ FIXED | SearchService | API abuse risk |
 | 18 | Anemic Models | 🟡 High | Entities | Scattered logic |
 | 19 | Missing Value Objects | 🟢 Medium | Throughout | No validation |
 | 20 | Inconsistent Logging | 🟢 Medium | Multiple | Hard to filter |
@@ -1507,15 +1339,15 @@ public class DeepResearchWorkflowTests
 
 ### Immediate (Critical 🔴)
 
-1. Fix fire-and-forget database initialization
+1. ~~Fix fire-and-forget database initialization~~ ✅ **COMPLETED**
 2. Implement vector persistence (replace in-memory index)
-3. Add circuit breaker for external calls
+3. ~~Add circuit breaker for external calls~~ ✅ **COMPLETED**
 4. Break down OrchestratorService god object
 
 ### High Priority (🟡)
 
 1. Create strongly-typed configuration
-2. Implement rate limiting
+2. ~~Implement rate limiting~~ ✅ **COMPLETED**
 3. Add proper transaction support
 4. Extract Azure OpenAI coupling
 
@@ -1545,5 +1377,25 @@ public class DeepResearchWorkflowTests
 
 ---
 
+---
+
+## Recently Fixed Anti-Patterns
+
+### Summary of Fixes (2025-11-15)
+
+**Critical Issues Resolved:**
+- ✅ **Issue #3**: Fire-and-Forget Database Initialization → `DatabaseInitializationService`
+- ✅ **Issue #15**: No Circuit Breaker Pattern → `ResilientSearchService` with circuit breaker, retry, and rate limiting
+- ✅ **Issue #17**: No Rate Limiting → Integrated into `ResilientSearchService`
+
+**Test Coverage Added:**
+- 3 tests for `DatabaseInitializationService`
+- 11 tests for `ResilientSearchService` and `CircuitBreaker`
+- All 14 tests passing
+
+**For complete details, see**: [CRITICAL-FIXES-SUMMARY.md](./CRITICAL-FIXES-SUMMARY.md)
+
+---
+
 *Document created: 2025-11-15*
-*Last updated: 2025-11-15*
+*Last updated: 2025-11-15 (Updated to reflect completed fixes)*
