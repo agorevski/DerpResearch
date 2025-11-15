@@ -29,6 +29,7 @@
 - Use nullable reference types throughout - mark nullable parameters with `?`
 - Prefer dependency injection over static classes and service locator patterns
 - Use `async`/`await` consistently - never use `.Result` or `.Wait()`
+- **Do NOT use `.ConfigureAwait(false)` in ASP.NET Core code** - it provides no benefit since ASP.NET Core doesn't use `SynchronizationContext` and only adds unnecessary noise
 - Leverage `IAsyncEnumerable<T>` for streaming operations
 - Use modern C# features: pattern matching, record types, init-only properties
 

@@ -308,7 +308,7 @@ public class OrchestratorService : IOrchestratorService
                 var newResults = new List<SearchResult>();
                 GatheredInformation? additionalInfo = null;
                 
-                await foreach (var item in _searchAgent.ExecuteSearchPlanAsync(additionalPlan, derpificationLevel).ConfigureAwait(false))
+                await foreach (var item in _searchAgent.ExecuteSearchPlanAsync(additionalPlan, derpificationLevel))
                 {
                     if (item is SearchResult result)
                     {
@@ -436,7 +436,7 @@ public class OrchestratorService : IOrchestratorService
         GatheredInformation? info = null;
         bool hasError = false;
         
-        await foreach (var item in _searchAgent.ExecuteSearchPlanAsync(plan, derpificationLevel).ConfigureAwait(false))
+        await foreach (var item in _searchAgent.ExecuteSearchPlanAsync(plan, derpificationLevel))
         {
             // Check if this is a SearchResult or GatheredInformation
             if (item is SearchResult result)
