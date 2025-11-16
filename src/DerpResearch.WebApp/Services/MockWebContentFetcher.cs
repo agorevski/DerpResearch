@@ -16,16 +16,19 @@ public class MockWebContentFetcher : IWebContentFetcher
         _logger.LogInformation("MockWebContentFetcher initialized - will return simulated content");
     }
 
-    public async Task<Dictionary<string, string>> FetchContentAsync(string[] urls, int timeoutSeconds = 5)
+    public async Task<Dictionary<string, string>> FetchContentAsync(string[] urls, int timeoutSeconds = 5, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _logger.LogInformation("Mock fetching content for {Count} URLs", urls.Length);
 
         var results = new Dictionary<string, string>();
 
         foreach (var url in urls)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            
             // Simulate network delay
-            await Task.Delay(_random.Next(100, 500));
+            await Task.Delay(_random.Next(100, 500), cancellationToken);
 
             // Generate realistic mock content based on URL
             var content = GenerateMockContent(url);

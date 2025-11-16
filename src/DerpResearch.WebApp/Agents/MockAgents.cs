@@ -21,10 +21,13 @@ public class MockClarificationAgent : IClarificationAgent
     public async Task<ClarificationResult> GenerateClarifyingQuestionsAsync(
         string userQuery,
         ConversationContext context,
-        int derpificationLevel = 100)
+        int derpificationLevel = 100,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         _logger.LogInformation("Generating mock clarifying questions for: {Query}", userQuery);
-        await Task.Delay(_random.Next(200, 400));
+        await Task.Delay(_random.Next(200, 400), cancellationToken);
 
         var questions = new List<string>
         {
@@ -67,12 +70,15 @@ public class MockPlannerAgent : IPlannerAgent
     public async Task<ResearchPlan> CreatePlanAsync(
         string userQuery,
         ConversationContext context,
-        int derpificationLevel = 100)
+        int derpificationLevel = 100,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         _logger.LogInformation("Creating mock research plan for: {Query} (derpification: {Level})",
             userQuery, derpificationLevel);
 
-        await Task.Delay(_random.Next(300, 600));
+        await Task.Delay(_random.Next(300, 600), cancellationToken);
 
         // Generate subtasks based on derpification level
         var allTasks = new[]
@@ -152,8 +158,11 @@ public class MockSearchAgent : ISearchAgent
 
     public async IAsyncEnumerable<object> ExecuteSearchPlanAsync(
         ResearchPlan plan,
-        int derpificationLevel = 100)
+        int derpificationLevel = 100,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         _logger.LogInformation("Executing mock search plan with {TaskCount} tasks", plan.Subtasks.Length);
 
         var allResults = new List<SearchResult>();
@@ -161,7 +170,9 @@ public class MockSearchAgent : ISearchAgent
 
         foreach (var task in plan.Subtasks)
         {
-            await Task.Delay(_random.Next(200, 400));
+            cancellationToken.ThrowIfCancellationRequested();
+            
+            await Task.Delay(_random.Next(200, 400), cancellationToken);
 
             // Perform search
             var maxResults = derpificationLevel switch
@@ -171,7 +182,7 @@ public class MockSearchAgent : ISearchAgent
                 _ => 3
             };
 
-            var searchResults = await _searchService.SearchAsync(task.SearchQuery, maxResults);
+            var searchResults = await _searchService.SearchAsync(task.SearchQuery, maxResults, cancellationToken);
             _logger.LogInformation("Mock search returned {Count} results for: {Query}",
                 searchResults.Length, task.SearchQuery);
 
@@ -179,7 +190,7 @@ public class MockSearchAgent : ISearchAgent
             var urls = searchResults.Select(r => r.Url).ToArray();
             if (urls.Length > 0)
             {
-                var contentMap = await _webContentFetcher.FetchContentAsync(urls);
+                var contentMap = await _webContentFetcher.FetchContentAsync(urls, cancellationToken: cancellationToken);
 
                 // Update results with fetched content
                 foreach (var result in searchResults)
@@ -194,10 +205,13 @@ public class MockSearchAgent : ISearchAgent
             // Store in memory and yield each result immediately (like real SearchAgent)
             foreach (var result in searchResults.Where(r => !string.IsNullOrEmpty(r.Content)))
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                
                 var memoryId = await _memoryService.StoreMemoryAsync(
                     result.Content!,
                     source: result.Url,
-                    tags: new[] { "web-search", task.SearchQuery }
+                    tags: new[] { "web-search", task.SearchQuery },
+                    cancellationToken: cancellationToken
                 );
                 allStoredMemoryIds.Add(memoryId);
                 allResults.Add(result);
@@ -205,7 +219,7 @@ public class MockSearchAgent : ISearchAgent
                 // Yield SearchResult (OrchestratorService will convert to SSE source update)
                 yield return result;
                 
-                await Task.Delay(_random.Next(100, 200));
+                await Task.Delay(_random.Next(100, 200), cancellationToken);
             }
         }
 
@@ -238,8 +252,11 @@ public class MockSynthesisAgent : ISynthesisAgent
         ResearchPlan plan,
         GatheredInformation info,
         MemoryChunk[] relevantMemories,
-        int derpificationLevel = 100)
+        int derpificationLevel = 100,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         _logger.LogInformation("Synthesizing mock response for: {Query} with {SourceCount} sources",
             userQuery, info.TotalSourcesFound);
 
@@ -250,7 +267,9 @@ public class MockSynthesisAgent : ISynthesisAgent
         var words = response.Split(' ');
         foreach (var word in words)
         {
-            await Task.Delay(_random.Next(30, 100));
+            cancellationToken.ThrowIfCancellationRequested();
+            
+            await Task.Delay(_random.Next(30, 100), cancellationToken);
             yield return word + " ";
         }
     }
@@ -341,10 +360,13 @@ public class MockReflectionAgent : IReflectionAgent
         string userQuery,
         string synthesizedResponse,
         GatheredInformation info,
-        int derpificationLevel = 100)
+        int derpificationLevel = 100,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         _logger.LogInformation("Reflecting on response quality for: {Query}", userQuery);
-        await Task.Delay(_random.Next(300, 600));
+        await Task.Delay(_random.Next(300, 600), cancellationToken);
 
         // Check if we should use fixed confidence (for testing)
         var useFixedConfidence = _configuration.GetValue<bool>("MockServices:UseFixedConfidence", false);

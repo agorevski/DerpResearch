@@ -15,7 +15,7 @@ public class DatabaseInitializationServiceTests
         // Arrange
         var mockMemoryService = new Mock<IMemoryService>();
         mockMemoryService
-            .Setup(m => m.InitializeAsync())
+            .Setup(m => m.InitializeAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var healthCheck = new InitializationHealthCheck();
@@ -35,7 +35,7 @@ public class DatabaseInitializationServiceTests
         // Assert
         var result = await healthCheck.CheckHealthAsync(new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext());
         Assert.Equal(Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy, result.Status);
-        mockMemoryService.Verify(m => m.InitializeAsync(), Times.Once);
+        mockMemoryService.Verify(m => m.InitializeAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class DatabaseInitializationServiceTests
         // Arrange
         var mockMemoryService = new Mock<IMemoryService>();
         mockMemoryService
-            .Setup(m => m.InitializeAsync())
+            .Setup(m => m.InitializeAsync(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Database initialization failed"));
 
         var healthCheck = new InitializationHealthCheck();

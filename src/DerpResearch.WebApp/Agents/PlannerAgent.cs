@@ -14,8 +14,10 @@ public class PlannerAgent : IPlannerAgent
         _logger = logger;
     }
 
-    public async Task<ResearchPlan> CreatePlanAsync(string userQuery, ConversationContext context, int derpificationLevel = 100)
+    public async Task<ResearchPlan> CreatePlanAsync(string userQuery, ConversationContext context, int derpificationLevel = 100, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         var contextSummary = BuildContextSummary(context);
         var complexityGuidance = GetComplexityGuidance(derpificationLevel);
 
@@ -51,7 +53,7 @@ Return ONLY a valid JSON object matching this structure:
   ""keyConcepts"": [""string"", ""string""]
 }}";
 
-        var plan = await _llmService.GetStructuredOutput<ResearchPlan>(prompt, "gpt-4o");
+        var plan = await _llmService.GetStructuredOutput<ResearchPlan>(prompt, "gpt-4o", cancellationToken);
 
         if (plan == null)
         {

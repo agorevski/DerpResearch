@@ -19,7 +19,7 @@ public class ResilientSearchServiceTests
             new SearchResult { Title = "Test", Url = "http://test.com", Snippet = "Test snippet" }
         };
         mockInnerService
-            .Setup(s => s.SearchAsync(It.IsAny<string>(), It.IsAny<int>()))
+            .Setup(s => s.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedResults);
 
         var mockLogger = new Mock<ILogger<ResilientSearchService>>();
@@ -30,7 +30,7 @@ public class ResilientSearchServiceTests
 
         // Assert
         Assert.Equal(expectedResults, results);
-        mockInnerService.Verify(s => s.SearchAsync("test query", 10), Times.Once);
+        mockInnerService.Verify(s => s.SearchAsync("test query", 10, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public class ResilientSearchServiceTests
 
         int callCount = 0;
         mockInnerService
-            .Setup(s => s.SearchAsync(It.IsAny<string>(), It.IsAny<int>()))
+            .Setup(s => s.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .Returns(() =>
             {
                 callCount++;
@@ -73,7 +73,7 @@ public class ResilientSearchServiceTests
         // Arrange
         var mockInnerService = new Mock<ISearchService>();
         mockInnerService
-            .Setup(s => s.SearchAsync(It.IsAny<string>(), It.IsAny<int>()))
+            .Setup(s => s.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("Permanent failure"));
 
         var mockLogger = new Mock<ILogger<ResilientSearchService>>();
@@ -84,7 +84,7 @@ public class ResilientSearchServiceTests
 
         // Assert
         Assert.Empty(results);
-        mockInnerService.Verify(s => s.SearchAsync("test query", 10), Times.Exactly(3)); // 3 attempts
+        mockInnerService.Verify(s => s.SearchAsync("test query", 10, It.IsAny<CancellationToken>()), Times.Exactly(3)); // 3 attempts
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public class ResilientSearchServiceTests
         // Arrange
         var mockInnerService = new Mock<ISearchService>();
         mockInnerService
-            .Setup(s => s.SearchAsync(It.IsAny<string>(), It.IsAny<int>()))
+            .Setup(s => s.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("Service failure"));
 
         var mockLogger = new Mock<ILogger<ResilientSearchService>>();
@@ -114,7 +114,7 @@ public class ResilientSearchServiceTests
         
         // Verify we did NOT call the inner service for the blocked request
         // Total calls should be 5 failures * 3 retries each = 15 calls, not 16
-        mockInnerService.Verify(s => s.SearchAsync(It.IsAny<string>(), It.IsAny<int>()), 
+        mockInnerService.Verify(s => s.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), 
             Times.Exactly(15)); // 5 failures * 3 attempts each
     }
 
@@ -124,7 +124,7 @@ public class ResilientSearchServiceTests
         // Arrange
         var mockInnerService = new Mock<ISearchService>();
         mockInnerService
-            .Setup(s => s.SearchAsync(It.IsAny<string>(), It.IsAny<int>()))
+            .Setup(s => s.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SearchResult[] { });
 
         var mockLogger = new Mock<ILogger<ResilientSearchService>>();

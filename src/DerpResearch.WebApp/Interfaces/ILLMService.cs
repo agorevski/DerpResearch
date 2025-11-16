@@ -9,7 +9,8 @@ public interface ILLMService
     /// </summary>
     IAsyncEnumerable<string> ChatCompletionStream(
         ChatMessage[] messages,
-        string deploymentName = "gpt-4o"
+        string deploymentName = "gpt-4o",
+        CancellationToken cancellationToken = default
     );
 
     /// <summary>
@@ -17,19 +18,21 @@ public interface ILLMService
     /// </summary>
     Task<string> ChatCompletion(
         ChatMessage[] messages,
-        string deploymentName = "gpt-4o"
+        string deploymentName = "gpt-4o",
+        CancellationToken cancellationToken = default
     );
 
     /// <summary>
     /// Generate embeddings for text
     /// </summary>
-    Task<float[]> GetEmbedding(string text);
+    Task<float[]> GetEmbedding(string text, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Get structured JSON output from the model
     /// </summary>
     Task<T?> GetStructuredOutput<T>(
         string prompt,
-        string deploymentName = "gpt-4o"
+        string deploymentName = "gpt-4o",
+        CancellationToken cancellationToken = default
     ) where T : class;
 }

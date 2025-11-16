@@ -7,6 +7,7 @@ public interface IWebContentFetcher
     /// </summary>
     /// <param name="urls">URLs to fetch</param>
     /// <param name="timeoutSeconds">Timeout per request in seconds</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Dictionary mapping successful URLs to their content</returns>
-    Task<Dictionary<string, string>> FetchContentAsync(string[] urls, int timeoutSeconds = 5);
+    Task<Dictionary<string, string>> FetchContentAsync(string[] urls, int timeoutSeconds = 5, CancellationToken cancellationToken = default);
 }

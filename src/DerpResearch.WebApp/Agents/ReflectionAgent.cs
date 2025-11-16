@@ -19,8 +19,11 @@ public class ReflectionAgent : IReflectionAgent
         string userQuery,
         string synthesizedResponse,
         GatheredInformation info,
-        int derpificationLevel = 100)
+        int derpificationLevel = 100,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         var evaluationGuidance = GetEvaluationGuidance(derpificationLevel);
         
         var prompt = $@"Evaluate the quality and completeness of this research response.
@@ -58,7 +61,7 @@ Provide your evaluation:";
 
         try
         {
-            var result = await _llmService.GetStructuredOutput<ReflectionResult>(prompt, "gpt-4o-mini");
+            var result = await _llmService.GetStructuredOutput<ReflectionResult>(prompt, "gpt-4o-mini", cancellationToken);
 
             if (result != null)
             {

@@ -65,7 +65,7 @@ public class ChatControllerTests
         await _controller.Chat(request);
         
         // Assert
-        _mockMemory.Verify(m => m.CreateConversationAsync(), Times.Once);
+        _mockMemory.Verify(m => m.CreateConversationAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -79,13 +79,14 @@ public class ChatControllerTests
         await _controller.Chat(request);
         
         // Assert
-        _mockMemory.Verify(m => m.CreateConversationAsync(), Times.Never);
+        _mockMemory.Verify(m => m.CreateConversationAsync(It.IsAny<CancellationToken>()), Times.Never);
         _mockOrchestrator.Verify(
             o => o.ProcessDeepResearchAsync(
                 It.IsAny<string>(),
                 existingConvId,
                 It.IsAny<int>(),
-                It.IsAny<string[]?>()),
+                It.IsAny<string[]?>(),
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -105,7 +106,8 @@ public class ChatControllerTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 derpLevel,
-                It.IsAny<string[]?>()),
+                It.IsAny<string[]?>(),
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -125,7 +127,8 @@ public class ChatControllerTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<int>(),
-                answers),
+                answers,
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -138,7 +141,8 @@ public class ChatControllerTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<int>(),
-                It.IsAny<string[]?>()))
+                It.IsAny<string[]?>(),
+                It.IsAny<CancellationToken>()))
             .Returns(TestMockFactory.CreateAsyncEnumerable(tokens));
         
         var request = TestDataBuilder.CreateChatRequest();
@@ -180,7 +184,8 @@ public class ChatControllerTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<int>(),
-                It.IsAny<string[]?>()))
+                It.IsAny<string[]?>(),
+                It.IsAny<CancellationToken>()))
             .Throws(new Exception(errorMessage));
         
         var request = TestDataBuilder.CreateChatRequest();
@@ -203,7 +208,7 @@ public class ChatControllerTests
         var conversationId = "test-conv-123";
         var context = TestDataBuilder.CreateConversationContext(conversationId);
         
-        _mockMemory.Setup(m => m.GetConversationContextAsync(conversationId, It.IsAny<int>()))
+        _mockMemory.Setup(m => m.GetConversationContextAsync(conversationId, It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         
         // Act
@@ -220,7 +225,7 @@ public class ChatControllerTests
     {
         // Arrange
         var conversationId = "test-conv-123";
-        _mockMemory.Setup(m => m.GetConversationContextAsync(conversationId, It.IsAny<int>()))
+        _mockMemory.Setup(m => m.GetConversationContextAsync(conversationId, It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("Database error"));
         
         // Act
@@ -237,7 +242,7 @@ public class ChatControllerTests
     {
         // Arrange
         var newConvId = "new-conv-456";
-        _mockMemory.Setup(m => m.CreateConversationAsync())
+        _mockMemory.Setup(m => m.CreateConversationAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(newConvId);
         
         // Act
@@ -255,7 +260,7 @@ public class ChatControllerTests
     public async Task CreateConversation_ShouldReturn500_OnError()
     {
         // Arrange
-        _mockMemory.Setup(m => m.CreateConversationAsync())
+        _mockMemory.Setup(m => m.CreateConversationAsync(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("Database error"));
         
         // Act
@@ -285,7 +290,8 @@ public class ChatControllerTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 derpLevel,
-                It.IsAny<string[]?>()),
+                It.IsAny<string[]?>(),
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -298,7 +304,8 @@ public class ChatControllerTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<int>(),
-                It.IsAny<string[]?>()))
+                It.IsAny<string[]?>(),
+                It.IsAny<CancellationToken>()))
             .Returns(TestMockFactory.CreateAsyncEnumerable(new[] { jsonUpdate }));
         
         var request = TestDataBuilder.CreateChatRequest();
@@ -323,7 +330,8 @@ public class ChatControllerTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<int>(),
-                It.IsAny<string[]?>()))
+                It.IsAny<string[]?>(),
+                It.IsAny<CancellationToken>()))
             .Returns(TestMockFactory.CreateAsyncEnumerable(new[] { plainText }));
         
         var request = TestDataBuilder.CreateChatRequest();

@@ -2,6 +2,7 @@ using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Models;
 using System.Text;
 using System.Text.Json;
+using System.Runtime.CompilerServices;
 
 namespace DeepResearch.WebApp.Services;
 
@@ -50,16 +51,19 @@ public class OrchestratorService : IOrchestratorService
         string prompt, 
         string conversationId, 
         int derpificationLevel = 100, 
-        string[]? clarificationAnswers = null)
+        string[]? clarificationAnswers = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         _logger.LogInformation("Starting deep research for conversation {ConversationId} with derpification level {Level}, has answers: {HasAnswers}", 
             conversationId, derpificationLevel, clarificationAnswers != null);
 
         // Save user message
-        await _memoryService.SaveMessageAsync(conversationId, "user", prompt);
+        await _memoryService.SaveMessageAsync(conversationId, "user", prompt, cancellationToken);
 
         // Step 1: Get conversation context
-        var context = await _memoryService.GetConversationContextAsync(conversationId);
+        var context = await _memoryService.GetConversationContextAsync(conversationId, cancellationToken: cancellationToken);
 
         // Step 1.5: PHASE 1 - Generate clarifying questions if no answers provided yet
         if (clarificationAnswers == null || clarificationAnswers.Length == 0)
@@ -73,7 +77,7 @@ public class OrchestratorService : IOrchestratorService
                 new ProgressUpdate("clarifying", "Understanding your research needs...")
             ), _jsonOptions) + "\n";
 
-            var clarification = await _clarificationAgent.GenerateClarifyingQuestionsAsync(prompt, context, derpificationLevel);
+            var clarification = await _clarificationAgent.GenerateClarifyingQuestionsAsync(prompt, context, derpificationLevel, cancellationToken);
             
             yield return JsonSerializer.Serialize(new StreamToken(
                 "",
@@ -85,7 +89,7 @@ public class OrchestratorService : IOrchestratorService
             _logger.LogInformation("Generated {Count} clarifying questions. Waiting for user answers.", clarification.Questions.Length);
             
             // Store questions in database for Phase 2
-            await _memoryService.StoreClarificationQuestionsAsync(conversationId, clarification.Questions);
+            await _memoryService.StoreClarificationQuestionsAsync(conversationId, clarification.Questions, cancellationToken);
             
             // STOP HERE - Wait for user to provide answers
             // Frontend should re-submit with clarificationAnswers populated
@@ -96,13 +100,13 @@ public class OrchestratorService : IOrchestratorService
         _logger.LogInformation("Phase 2: Processing with {Count} clarification answers", clarificationAnswers.Length);
         
         // Retrieve the questions from Phase 1 (from database)
-        var questions = await _memoryService.GetClarificationQuestionsAsync(conversationId) ?? Array.Empty<string>();
+        var questions = await _memoryService.GetClarificationQuestionsAsync(conversationId, cancellationToken) ?? Array.Empty<string>();
         
         var enhancedPrompt = EnhancePromptWithClarifications(prompt, questions, clarificationAnswers);
         _logger.LogInformation("Enhanced prompt created from {Count} Q&A pairs", questions.Length);
         
         // Clean up clarification questions after use
-        await _memoryService.ClearClarificationQuestionsAsync(conversationId);
+        await _memoryService.ClearClarificationQuestionsAsync(conversationId, cancellationToken);
 
         // Step 2: Create research plan (using enhanced prompt)
         yield return JsonSerializer.Serialize(new StreamToken(
@@ -112,7 +116,7 @@ public class OrchestratorService : IOrchestratorService
             new ProgressUpdate("planning", "Analyzing your question and creating research plan...")
         ), _jsonOptions) + "\n";
 
-        var plan = await _plannerAgent.CreatePlanAsync(enhancedPrompt, context, derpificationLevel);
+        var plan = await _plannerAgent.CreatePlanAsync(enhancedPrompt, context, derpificationLevel, cancellationToken);
         
         yield return JsonSerializer.Serialize(new StreamToken(
             "",
@@ -130,7 +134,7 @@ public class OrchestratorService : IOrchestratorService
         ), _jsonOptions) + "\n";
 
         GatheredInformation? info = null;
-        await foreach (var update in ExecuteSearchWithProgressAsync(plan, conversationId, derpificationLevel))
+        await foreach (var update in ExecuteSearchWithProgressAsync(plan, conversationId, derpificationLevel, cancellationToken).WithCancellation(cancellationToken))
         {
             // Check if this is the final GatheredInformation marker
             if (update.StartsWith("FINAL_INFO:"))
@@ -177,14 +181,14 @@ public class OrchestratorService : IOrchestratorService
             }
 
             var responseBuilder = new StringBuilder();
-            await foreach (var token in _llmService.ChatCompletionStream(messages.ToArray(), "gpt-4o"))
+            await foreach (var token in _llmService.ChatCompletionStream(messages.ToArray(), "gpt-4o", cancellationToken).WithCancellation(cancellationToken))
             {
                 responseBuilder.Append(token);
                 yield return token;
             }
 
             var response = responseBuilder.ToString();
-            await _memoryService.SaveMessageAsync(conversationId, "assistant", response);
+            await _memoryService.SaveMessageAsync(conversationId, "assistant", response, cancellationToken);
             
             _logger.LogInformation("Completed with fallback response for conversation {ConversationId}", conversationId);
             yield break;
@@ -198,7 +202,7 @@ public class OrchestratorService : IOrchestratorService
         ), _jsonOptions) + "\n";
 
         // Step 4: Search for relevant memories
-        var relevantMemories = await _memoryService.SearchMemoryAsync(enhancedPrompt, 5, conversationId);
+        var relevantMemories = await _memoryService.SearchMemoryAsync(enhancedPrompt, 5, conversationId, cancellationToken);
 
         // Step 5-6: Synthesize and Reflect (with iteration loop)
         var maxIterations = int.Parse(_config["Reflection:MaxIterations"] ?? "2");
@@ -212,6 +216,8 @@ public class OrchestratorService : IOrchestratorService
 
         while (iteration < maxIterations)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            
             iteration++;
             
             // Synthesize response
@@ -242,7 +248,7 @@ public class OrchestratorService : IOrchestratorService
             };
 
             var responseBuilder = new StringBuilder();
-            await foreach (var token in _synthesisAgent.SynthesizeAsync(enhancedPrompt, plan, currentInfo, relevantMemories, derpificationLevel))
+            await foreach (var token in _synthesisAgent.SynthesizeAsync(enhancedPrompt, plan, currentInfo, relevantMemories, derpificationLevel, cancellationToken).WithCancellation(cancellationToken))
             {
                 responseBuilder.Append(token);
                 yield return token;
@@ -251,7 +257,7 @@ public class OrchestratorService : IOrchestratorService
             synthesizedResponse = responseBuilder.ToString();
 
             // Reflect on the synthesized response
-            reflection = await _reflectionAgent.ReflectAsync(enhancedPrompt, synthesizedResponse, currentInfo, derpificationLevel);
+            reflection = await _reflectionAgent.ReflectAsync(enhancedPrompt, synthesizedResponse, currentInfo, derpificationLevel, cancellationToken);
 
             _logger.LogInformation(
                 "Reflection iteration {Iteration}: Confidence={Confidence:F2}, RequiresMore={RequiresMore}, Suggestions={SuggestionCount}",
@@ -279,6 +285,8 @@ public class OrchestratorService : IOrchestratorService
             var additionalSearchCount = 0;
             foreach (var searchQuery in reflection.SuggestedAdditionalSearches)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                
                 additionalSearchCount++;
                 
                 yield return JsonSerializer.Serialize(new StreamToken(
@@ -308,7 +316,7 @@ public class OrchestratorService : IOrchestratorService
                 var newResults = new List<SearchResult>();
                 GatheredInformation? additionalInfo = null;
                 
-                await foreach (var item in _searchAgent.ExecuteSearchPlanAsync(additionalPlan, derpificationLevel))
+                await foreach (var item in _searchAgent.ExecuteSearchPlanAsync(additionalPlan, derpificationLevel, cancellationToken).WithCancellation(cancellationToken))
                 {
                     if (item is SearchResult result)
                     {
@@ -377,14 +385,15 @@ public class OrchestratorService : IOrchestratorService
         }
 
         // Step 7: Save assistant response
-        await _memoryService.SaveMessageAsync(conversationId, "assistant", synthesizedResponse);
+        await _memoryService.SaveMessageAsync(conversationId, "assistant", synthesizedResponse, cancellationToken);
 
         // Store the final synthesized response as a memory for future reference
         await _memoryService.StoreMemoryAsync(
             synthesizedResponse,
             "deep-research-synthesis",
             new[] { "synthesis", "deep-research", enhancedPrompt },
-            conversationId
+            conversationId,
+            cancellationToken
         );
 
         _logger.LogInformation("Deep research completed for conversation {ConversationId}", conversationId);
@@ -414,13 +423,17 @@ public class OrchestratorService : IOrchestratorService
         return enhanced.ToString();
     }
 
-    private async IAsyncEnumerable<string> ExecuteSearchWithProgressAsync(ResearchPlan plan, string conversationId, int derpificationLevel)
+    private async IAsyncEnumerable<string> ExecuteSearchWithProgressAsync(ResearchPlan plan, string conversationId, int derpificationLevel, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         int taskNumber = 0;
         int totalTasks = plan.Subtasks.Length;
 
         foreach (var task in plan.Subtasks)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            
             taskNumber++;
             
             // Yield search query update
@@ -436,7 +449,7 @@ public class OrchestratorService : IOrchestratorService
         GatheredInformation? info = null;
         bool hasError = false;
         
-        await foreach (var item in _searchAgent.ExecuteSearchPlanAsync(plan, derpificationLevel))
+        await foreach (var item in _searchAgent.ExecuteSearchPlanAsync(plan, derpificationLevel, cancellationToken).WithCancellation(cancellationToken))
         {
             // Check if this is a SearchResult or GatheredInformation
             if (item is SearchResult result)

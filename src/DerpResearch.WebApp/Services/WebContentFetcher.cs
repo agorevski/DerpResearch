@@ -18,12 +18,14 @@ public class WebContentFetcher : IWebContentFetcher
         _logger = logger;
     }
 
-    public async Task<Dictionary<string, string>> FetchContentAsync(string[] urls, int timeoutSeconds = 5)
+    public async Task<Dictionary<string, string>> FetchContentAsync(string[] urls, int timeoutSeconds = 5, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         _logger.LogInformation("Fetching content for {Count} URLs in parallel with {Timeout}s timeout", 
             urls.Length, timeoutSeconds);
 
-        var tasks = urls.Select(url => FetchSingleUrlAsync(url, timeoutSeconds)).ToArray();
+        var tasks = urls.Select(url => FetchSingleUrlAsync(url, timeoutSeconds, cancellationToken)).ToArray();
         var results = await Task.WhenAll(tasks);
 
         var successfulResults = results
@@ -36,11 +38,15 @@ public class WebContentFetcher : IWebContentFetcher
         return successfulResults;
     }
 
-    private async Task<(string Url, bool Success, string Content)> FetchSingleUrlAsync(string url, int timeoutSeconds)
+    private async Task<(string Url, bool Success, string Content)> FetchSingleUrlAsync(string url, int timeoutSeconds, CancellationToken cancellationToken = default)
     {
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+            cancellationToken.ThrowIfCancellationRequested();
+            
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+            
             var httpClient = _httpClientFactory.CreateClient();
             
             // Set a user agent to avoid being blocked

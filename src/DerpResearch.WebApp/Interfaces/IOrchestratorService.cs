@@ -9,5 +9,6 @@ public interface IOrchestratorService
         string prompt, 
         string conversationId, 
         int derpificationLevel = 100, 
-        string[]? clarificationAnswers = null);
+        string[]? clarificationAnswers = null,
+        CancellationToken cancellationToken = default);
 }

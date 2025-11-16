@@ -1,5 +1,6 @@
 using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Models;
+using System.Runtime.CompilerServices;
 
 namespace DeepResearch.WebApp.Agents;
 
@@ -22,8 +23,10 @@ public class SearchAgent : ISearchAgent
         _logger = logger;
     }
 
-    public async IAsyncEnumerable<object> ExecuteSearchPlanAsync(ResearchPlan plan, int derpificationLevel = 100)
+    public async IAsyncEnumerable<object> ExecuteSearchPlanAsync(ResearchPlan plan, int derpificationLevel = 100, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         var allResults = new List<SearchResult>();
         var storedMemoryIds = new List<string>();
 
@@ -35,6 +38,8 @@ public class SearchAgent : ISearchAgent
 
         foreach (var task in plan.Subtasks)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            
             _logger.LogDebug("Processing subtask: {Description}", task.Description);
 
             SearchResult[] results;
@@ -43,7 +48,7 @@ public class SearchAgent : ISearchAgent
             // Perform search with variable result count
             try
             {
-                results = await _searchService.SearchAsync(task.SearchQuery, resultsPerQuery);
+                results = await _searchService.SearchAsync(task.SearchQuery, resultsPerQuery, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -64,7 +69,7 @@ public class SearchAgent : ISearchAgent
             
             try
             {
-                fetchedContent = await _contentFetcher.FetchContentAsync(urls, timeoutSeconds: 5);
+                fetchedContent = await _contentFetcher.FetchContentAsync(urls, timeoutSeconds: 5, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -96,6 +101,8 @@ public class SearchAgent : ISearchAgent
             // Store each result in memory with full content and yield it immediately
             foreach (var result in successfulResults)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                
                 // Use full content instead of just snippet
                 var memoryText = $"{result.Title}\n{result.Content}\nSource: {result.Url}";
                 var tags = new[] { "search-result", task.SearchQuery };
@@ -103,7 +110,7 @@ public class SearchAgent : ISearchAgent
                 string memoryId;
                 try
                 {
-                    memoryId = await _memoryService.StoreMemoryAsync(memoryText, result.Url, tags);
+                    memoryId = await _memoryService.StoreMemoryAsync(memoryText, result.Url, tags, cancellationToken: cancellationToken);
                 }
                 catch (Exception ex)
                 {
@@ -121,7 +128,7 @@ public class SearchAgent : ISearchAgent
                 successfulResults.Length, results.Length, task.SearchQuery);
 
             // Small delay to avoid rate limiting
-            await Task.Delay(500);
+            await Task.Delay(500, cancellationToken);
         }
 
         var info = new GatheredInformation

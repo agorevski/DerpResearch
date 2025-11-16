@@ -33,33 +33,41 @@ public class SearchService : ISearchService
         _googleSearchEngineId = config["GoogleCustomSearch:SearchEngineId"] ?? throw new InvalidOperationException("Google Custom Search Engine ID not configured");
     }
 
-    public async Task<SearchResult[]> SearchAsync(string query, int maxResults = 10)
+    public async Task<SearchResult[]> SearchAsync(string query, int maxResults = 10, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         // Check cache first
-        var cached = await GetCachedResultsAsync(query);
+        var cached = await GetCachedResultsAsync(query, cancellationToken);
         if (cached != null)
         {
             _logger.LogDebug("Returning cached results for query: {Query}", query);
             return cached;
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
+        
         // Perform Google Custom Search
-        var results = await GoogleCustomSearchAsync(query, maxResults);
+        var results = await GoogleCustomSearchAsync(query, maxResults, cancellationToken);
 
+        cancellationToken.ThrowIfCancellationRequested();
+        
         // Cache the results
-        await CacheResultsAsync(query, results);
+        await CacheResultsAsync(query, results, cancellationToken);
 
         return results;
     }
 
-    private async Task<SearchResult[]> GoogleCustomSearchAsync(string query, int maxResults)
+    private async Task<SearchResult[]> GoogleCustomSearchAsync(string query, int maxResults, CancellationToken cancellationToken = default)
     {
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            
             // Google Custom Search API endpoint
             var url = $"https://www.googleapis.com/customsearch/v1?key={_googleApiKey}&cx={_googleSearchEngineId}&q={Uri.EscapeDataString(query)}&num={Math.Min(maxResults, 10)}";
 
-            var response = await _httpClient.GetStringAsync(url);
+            var response = await _httpClient.GetStringAsync(url, cancellationToken);
             var searchResponse = JsonSerializer.Deserialize<GoogleSearchResponse>(response, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
@@ -101,13 +109,15 @@ public class SearchService : ISearchService
         }
     }
 
-    private async Task<SearchResult[]?> GetCachedResultsAsync(string query)
+    private async Task<SearchResult[]?> GetCachedResultsAsync(string query, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         var queryHash = ComputeHash(query);
 
         var connectionString = $"Data Source={_dbPath}";
         await using var connection = new SqliteConnection(connectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -117,7 +127,7 @@ public class SearchService : ISearchService
         ";
         command.Parameters.AddWithValue("$hash", queryHash);
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (await reader.ReadAsync())
         {
             var timestamp = DateTime.Parse(reader.GetString(1));
@@ -133,14 +143,16 @@ public class SearchService : ISearchService
         return null;
     }
 
-    private async Task CacheResultsAsync(string query, SearchResult[] results)
+    private async Task CacheResultsAsync(string query, SearchResult[] results, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         var queryHash = ComputeHash(query);
         var resultsJson = JsonSerializer.Serialize(results);
 
         var connectionString = $"Data Source={_dbPath}";
         await using var connection = new SqliteConnection(connectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -151,16 +163,18 @@ public class SearchService : ISearchService
         command.Parameters.AddWithValue("$results", resultsJson);
         command.Parameters.AddWithValue("$timestamp", DateTime.UtcNow.ToString("O"));
 
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task ClearExpiredCacheAsync()
+    public async Task ClearExpiredCacheAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         var threshold = DateTime.UtcNow.AddSeconds(-_cacheDuration);
 
         var connectionString = $"Data Source={_dbPath}";
         await using var connection = new SqliteConnection(connectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -169,7 +183,7 @@ public class SearchService : ISearchService
         ";
         command.Parameters.AddWithValue("$threshold", threshold.ToString("O"));
 
-        var deleted = await command.ExecuteNonQueryAsync();
+        var deleted = await command.ExecuteNonQueryAsync(cancellationToken);
         _logger.LogInformation("Cleared {Count} expired cache entries", deleted);
     }
 

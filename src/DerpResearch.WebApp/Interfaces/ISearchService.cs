@@ -7,10 +7,10 @@ public interface ISearchService
     /// <summary>
     /// Search with caching
     /// </summary>
-    Task<SearchResult[]> SearchAsync(string query, int maxResults = 10);
+    Task<SearchResult[]> SearchAsync(string query, int maxResults = 10, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Clear expired cache entries
     /// </summary>
-    Task ClearExpiredCacheAsync();
+    Task ClearExpiredCacheAsync(CancellationToken cancellationToken = default);
 }

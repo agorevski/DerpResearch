@@ -7,7 +7,7 @@ public interface IPlannerAgent
     /// <summary>
     /// Break down user query into subtasks
     /// </summary>
-    Task<ResearchPlan> CreatePlanAsync(string userQuery, ConversationContext context, int derpificationLevel = 100);
+    Task<ResearchPlan> CreatePlanAsync(string userQuery, ConversationContext context, int derpificationLevel = 100, CancellationToken cancellationToken = default);
 }
 
 public interface ISearchAgent
@@ -15,7 +15,7 @@ public interface ISearchAgent
     /// <summary>
     /// Execute search plan and gather information, yielding sources as they're fetched
     /// </summary>
-    IAsyncEnumerable<object> ExecuteSearchPlanAsync(ResearchPlan plan, int derpificationLevel = 100);
+    IAsyncEnumerable<object> ExecuteSearchPlanAsync(ResearchPlan plan, int derpificationLevel = 100, CancellationToken cancellationToken = default);
 }
 
 public interface ISynthesisAgent
@@ -28,7 +28,8 @@ public interface ISynthesisAgent
         ResearchPlan plan,
         GatheredInformation info,
         MemoryChunk[] relevantMemories,
-        int derpificationLevel = 100
+        int derpificationLevel = 100,
+        CancellationToken cancellationToken = default
     );
 }
 
@@ -41,7 +42,8 @@ public interface IReflectionAgent
         string userQuery,
         string synthesizedResponse,
         GatheredInformation info,
-        int derpificationLevel = 100
+        int derpificationLevel = 100,
+        CancellationToken cancellationToken = default
     );
 }
 
@@ -53,6 +55,7 @@ public interface IClarificationAgent
     Task<ClarificationResult> GenerateClarifyingQuestionsAsync(
         string userQuery,
         ConversationContext context,
-        int derpificationLevel = 100
+        int derpificationLevel = 100,
+        CancellationToken cancellationToken = default
     );
 }

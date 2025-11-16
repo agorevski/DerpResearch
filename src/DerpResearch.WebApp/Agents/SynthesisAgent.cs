@@ -1,6 +1,7 @@
 using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Models;
 using System.Text;
+using System.Runtime.CompilerServices;
 
 namespace DeepResearch.WebApp.Agents;
 
@@ -20,8 +21,11 @@ public class SynthesisAgent : ISynthesisAgent
         ResearchPlan plan,
         GatheredInformation info,
         MemoryChunk[] relevantMemories,
-        int derpificationLevel = 100)
+        int derpificationLevel = 100,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         var prompt = BuildSynthesisPrompt(userQuery, plan, info, relevantMemories, derpificationLevel);
 
         var messages = new[]
@@ -40,7 +44,7 @@ public class SynthesisAgent : ISynthesisAgent
 
         _logger.LogInformation("Starting synthesis for query: {Query}", userQuery);
 
-        await foreach (var token in _llmService.ChatCompletionStream(messages, "gpt-4o"))
+        await foreach (var token in _llmService.ChatCompletionStream(messages, "gpt-4o", cancellationToken).WithCancellation(cancellationToken))
         {
             yield return token;
         }

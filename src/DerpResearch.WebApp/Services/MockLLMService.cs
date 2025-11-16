@@ -21,8 +21,11 @@ public class MockLLMService : ILLMService
 
     public async IAsyncEnumerable<string> ChatCompletionStream(
         ChatMessage[] messages,
-        string deploymentName = "gpt-4o")
+        string deploymentName = "gpt-4o",
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         _logger.LogInformation("Mock streaming chat completion for {DeploymentName}", deploymentName);
 
         var lastMessage = messages.LastOrDefault()?.Content ?? "";
@@ -32,32 +35,38 @@ public class MockLLMService : ILLMService
         var words = response.Split(' ');
         foreach (var word in words)
         {
-            await Task.Delay(_random.Next(20, 80));
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.Delay(_random.Next(20, 80), cancellationToken);
             yield return word + " ";
         }
     }
 
     public async Task<string> ChatCompletion(
         ChatMessage[] messages,
-        string deploymentName = "gpt-4o")
+        string deploymentName = "gpt-4o",
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         _logger.LogInformation("Mock non-streaming chat completion for {DeploymentName}", deploymentName);
 
         var lastMessage = messages.LastOrDefault()?.Content ?? "";
         var response = GenerateMockResponse(lastMessage, deploymentName);
 
         // Simulate API latency
-        await Task.Delay(_random.Next(100, 300));
+        await Task.Delay(_random.Next(100, 300), cancellationToken);
 
         return response;
     }
 
-    public async Task<float[]> GetEmbedding(string text)
+    public async Task<float[]> GetEmbedding(string text, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         _logger.LogInformation("Mock embedding generation for text length: {Length}", text.Length);
 
         // Simulate API latency
-        await Task.Delay(_random.Next(50, 150));
+        await Task.Delay(_random.Next(50, 150), cancellationToken);
 
         // Generate deterministic random embedding based on text hash
         var seed = text.GetHashCode();
@@ -81,12 +90,15 @@ public class MockLLMService : ILLMService
 
     public async Task<T?> GetStructuredOutput<T>(
         string prompt,
-        string deploymentName = "gpt-4o") where T : class
+        string deploymentName = "gpt-4o",
+        CancellationToken cancellationToken = default) where T : class
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         _logger.LogInformation("Mock structured output for type: {Type}", typeof(T).Name);
 
         // Simulate API latency
-        await Task.Delay(_random.Next(200, 500));
+        await Task.Delay(_random.Next(200, 500), cancellationToken);
 
         // Generate mock structured responses based on type
         if (typeof(T) == typeof(ResearchPlan))

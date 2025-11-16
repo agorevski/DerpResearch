@@ -33,8 +33,10 @@ public class ResilientSearchService : ISearchService
             logger);
     }
 
-    public async Task<SearchResult[]> SearchAsync(string query, int maxResults = 10)
+    public async Task<SearchResult[]> SearchAsync(string query, int maxResults = 10, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         // Check circuit breaker
         if (!_circuitBreaker.AllowRequest())
         {
@@ -61,40 +63,40 @@ public class ResilientSearchService : ISearchService
             int maxRetries = 3;
             Exception? lastException = null;
             
-            for (int attempt = 1; attempt <= maxRetries; attempt++)
-            {
-                try
+                for (int attempt = 1; attempt <= maxRetries; attempt++)
                 {
-                    var result = await _innerService.SearchAsync(query, maxResults);
-                    _circuitBreaker.RecordSuccess();
-                    return result;
-                }
-                catch (HttpRequestException ex) when (attempt < maxRetries)
-                {
-                    lastException = ex;
-                    var delaySeconds = Math.Pow(2, attempt);
-                    _logger.LogWarning(ex, 
-                        "Search attempt {Attempt}/{Max} failed for query: {Query}. Retrying after {Delay}s",
-                        attempt, maxRetries, query, delaySeconds);
-                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
-                }
-                catch (Exception ex)
-                {
-                    lastException = ex;
-                    if (attempt < maxRetries)
+                    try
                     {
+                        var result = await _innerService.SearchAsync(query, maxResults, cancellationToken);
+                        _circuitBreaker.RecordSuccess();
+                        return result;
+                    }
+                    catch (HttpRequestException ex) when (attempt < maxRetries)
+                    {
+                        lastException = ex;
                         var delaySeconds = Math.Pow(2, attempt);
                         _logger.LogWarning(ex, 
                             "Search attempt {Attempt}/{Max} failed for query: {Query}. Retrying after {Delay}s",
                             attempt, maxRetries, query, delaySeconds);
-                        await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                        await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Search failed for query: {Query} after {Attempts} attempts", query, maxRetries);
+                        lastException = ex;
+                        if (attempt < maxRetries)
+                        {
+                            var delaySeconds = Math.Pow(2, attempt);
+                            _logger.LogWarning(ex, 
+                                "Search attempt {Attempt}/{Max} failed for query: {Query}. Retrying after {Delay}s",
+                                attempt, maxRetries, query, delaySeconds);
+                            await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+                        }
+                        else
+                        {
+                            _logger.LogError(ex, "Search failed for query: {Query} after {Attempts} attempts", query, maxRetries);
+                        }
                     }
                 }
-            }
 
             // All retries exhausted
             _logger.LogError("All retry attempts exhausted for query: {Query}. Last exception: {Exception}", 
@@ -108,10 +110,12 @@ public class ResilientSearchService : ISearchService
         }
     }
 
-    public async Task ClearExpiredCacheAsync()
+    public async Task ClearExpiredCacheAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         // Delegate to inner service
-        await _innerService.ClearExpiredCacheAsync();
+        await _innerService.ClearExpiredCacheAsync(cancellationToken);
     }
 }
 
@@ -223,8 +227,10 @@ public class ResilientWebContentFetcher : IWebContentFetcher
             logger);
     }
 
-    public async Task<Dictionary<string, string>> FetchContentAsync(string[] urls, int timeoutSeconds = 5)
+    public async Task<Dictionary<string, string>> FetchContentAsync(string[] urls, int timeoutSeconds = 5, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         if (!_circuitBreaker.AllowRequest())
         {
             _logger.LogWarning("Circuit breaker is OPEN - content fetch request rejected for {Count} URLs", urls.Length);
@@ -233,7 +239,7 @@ public class ResilientWebContentFetcher : IWebContentFetcher
 
         try
         {
-            var result = await _innerService.FetchContentAsync(urls, _timeoutSeconds);
+            var result = await _innerService.FetchContentAsync(urls, _timeoutSeconds, cancellationToken);
             _circuitBreaker.RecordSuccess();
             return result;
         }

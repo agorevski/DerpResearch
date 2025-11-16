@@ -17,8 +17,11 @@ public class ClarificationAgent : IClarificationAgent
     public async Task<ClarificationResult> GenerateClarifyingQuestionsAsync(
         string userQuery,
         ConversationContext context,
-        int derpificationLevel = 100)
+        int derpificationLevel = 100,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         var contextSummary = BuildContextSummary(context);
         var questionGuidance = GetQuestionGuidance(derpificationLevel);
 
@@ -46,7 +49,7 @@ The questions should be open-ended and help narrow down the research scope.";
 
         try
         {
-            var result = await _llmService.GetStructuredOutput<ClarificationResult>(prompt, "gpt-4o");
+            var result = await _llmService.GetStructuredOutput<ClarificationResult>(prompt, "gpt-4o", cancellationToken);
 
             if (result != null && result.Questions.Length > 0)
             {

@@ -12,8 +12,9 @@ public class MockSearchService : ISearchService
         _logger = logger;
     }
 
-    public Task<SearchResult[]> SearchAsync(string query, int maxResults = 10)
+    public Task<SearchResult[]> SearchAsync(string query, int maxResults = 10, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _logger.LogInformation("MockSearchService: Returning mock results for query: {Query}", query);
 
         maxResults = 2;
@@ -33,8 +34,9 @@ public class MockSearchService : ISearchService
         return Task.FromResult(results.ToArray());
     }
 
-    public Task ClearExpiredCacheAsync()
+    public Task ClearExpiredCacheAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _logger.LogInformation("MockSearchService: ClearExpiredCacheAsync called (no-op in mock)");
         return Task.CompletedTask;
     }

@@ -38,15 +38,19 @@ public static class TestMockFactory
         // Default behavior: return simple responses
         mock.Setup(s => s.ChatCompletion(
                 It.IsAny<ChatMessage[]>(),
-                It.IsAny<string>()))
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync("Test response");
         
         mock.Setup(s => s.ChatCompletionStream(
                 It.IsAny<ChatMessage[]>(),
-                It.IsAny<string>()))
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(new[] { "Test ", "streaming ", "response" }));
         
-        mock.Setup(s => s.GetEmbedding(It.IsAny<string>()))
+        mock.Setup(s => s.GetEmbedding(
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(TestDataBuilder.CreateTestEmbedding());
         
         return mock;
@@ -56,16 +60,20 @@ public static class TestMockFactory
     {
         var mock = new Mock<IMemoryService>();
         
-        mock.Setup(m => m.CreateConversationAsync())
+        mock.Setup(m => m.CreateConversationAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync("test-conversation-id");
         
-        mock.Setup(m => m.GetConversationContextAsync(It.IsAny<string>(), It.IsAny<int>()))
+        mock.Setup(m => m.GetConversationContextAsync(
+                It.IsAny<string>(),
+                It.IsAny<int>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(TestDataBuilder.CreateConversationContext());
         
         mock.Setup(m => m.SaveMessageAsync(
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                It.IsAny<string>()))
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         
         return mock;
@@ -77,7 +85,8 @@ public static class TestMockFactory
         
         mock.Setup(s => s.SearchAsync(
                 It.IsAny<string>(),
-                It.IsAny<int>()))
+                It.IsAny<int>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(TestDataBuilder.CreateSearchResults(5).ToArray());
         
         return mock;
@@ -89,7 +98,8 @@ public static class TestMockFactory
         
         mock.Setup(f => f.FetchContentAsync(
                 It.IsAny<string[]>(),
-                It.IsAny<int>()))
+                It.IsAny<int>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<string, string> 
             { 
                 ["https://example.com"] = "Test web content for the given URL." 
@@ -105,7 +115,8 @@ public static class TestMockFactory
         mock.Setup(a => a.GenerateClarifyingQuestionsAsync(
                 It.IsAny<string>(),
                 It.IsAny<ConversationContext>(),
-                It.IsAny<int>()))
+                It.IsAny<int>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(TestDataBuilder.CreateClarificationResult());
         
         return mock;
@@ -118,7 +129,8 @@ public static class TestMockFactory
         mock.Setup(a => a.CreatePlanAsync(
                 It.IsAny<string>(),
                 It.IsAny<ConversationContext>(),
-                It.IsAny<int>()))
+                It.IsAny<int>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(TestDataBuilder.CreateResearchPlan());
         
         return mock;
@@ -130,7 +142,8 @@ public static class TestMockFactory
         
         mock.Setup(a => a.ExecuteSearchPlanAsync(
                 It.IsAny<ResearchPlan>(),
-                It.IsAny<int>()))
+                It.IsAny<int>(),
+                It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(new object[] 
             { 
                 TestDataBuilder.CreateProgressUpdate("Searching...", "search"),
@@ -149,7 +162,8 @@ public static class TestMockFactory
                 It.IsAny<ResearchPlan>(),
                 It.IsAny<GatheredInformation>(),
                 It.IsAny<MemoryChunk[]>(),
-                It.IsAny<int>()))
+                It.IsAny<int>(),
+                It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(new[] { "Synthesized ", "response ", "content" }));
         
         return mock;
@@ -163,7 +177,8 @@ public static class TestMockFactory
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<GatheredInformation>(),
-                It.IsAny<int>()))
+                It.IsAny<int>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(TestDataBuilder.CreateReflectionResult());
         
         return mock;
@@ -177,7 +192,8 @@ public static class TestMockFactory
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<int>(),
-                It.IsAny<string[]?>()))
+                It.IsAny<string[]?>(),
+                It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(new[] 
             { 
                 "Deep ", 

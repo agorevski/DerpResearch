@@ -35,17 +35,20 @@ public class MemoryService : IMemoryService
         _logger.LogInformation("MemoryService constructor completed. TopK: {TopK}", _topK);
     }
 
-    public async Task InitializeAsync()
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _logger.LogInformation("MemoryService.InitializeAsync() called");
         try
         {
             await _dbInitializer.InitializeAsync();
             _logger.LogInformation("Database initialized successfully");
             
+            cancellationToken.ThrowIfCancellationRequested();
+            
             // Load existing vectors from database
             await using var connection = _dbInitializer.CreateConnection();
-            await connection.OpenAsync();
+            await connection.OpenAsync(cancellationToken);
             await _faissIndex.LoadFromDatabaseAsync(connection);
             _logger.LogInformation("Vector index loaded successfully with {Count} vectors", _faissIndex.Count);
         }
@@ -56,8 +59,10 @@ public class MemoryService : IMemoryService
         }
     }
 
-    public async Task<string> StoreMemoryAsync(string text, string source, string[] tags, string? conversationId = null)
+    public async Task<string> StoreMemoryAsync(string text, string source, string[] tags, string? conversationId = null, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         // Split large texts into chunks to avoid embedding token limits
         // Using conservative defaults: 3000 tokens max, 100 token overlap
         var chunks = TextChunker.ChunkText(text, maxTokens: 3000, overlapTokens: 100);
@@ -73,17 +78,19 @@ public class MemoryService : IMemoryService
         var primaryId = Guid.NewGuid().ToString();
 
         await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         // Store each chunk as a separate memory entry
         for (int i = 0; i < chunks.Length; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            
             var chunk = chunks[i];
             var chunkId = chunks.Length == 1 ? primaryId : $"{primaryId}-chunk{i}";
             
             try
             {
-                var embedding = await _llmService.GetEmbedding(chunk);
+                var embedding = await _llmService.GetEmbedding(chunk, cancellationToken);
                 var vectorId = await _faissIndex.AddVectorAsync(embedding, connection);
 
                 var command = connection.CreateCommand();
@@ -105,7 +112,7 @@ public class MemoryService : IMemoryService
                 command.Parameters.AddWithValue("$timestamp", DateTime.UtcNow.ToString("O"));
                 command.Parameters.AddWithValue("$conversationId", conversationId ?? (object)DBNull.Value);
 
-                await command.ExecuteNonQueryAsync();
+                await command.ExecuteNonQueryAsync(cancellationToken);
                 _logger.LogDebug("Stored memory chunk {ChunkId} ({Index}/{Total}) with vector {VectorId}", 
                     chunkId, i + 1, chunks.Length, vectorId);
             }
@@ -120,23 +127,26 @@ public class MemoryService : IMemoryService
         return primaryId;
     }
 
-    public async Task<MemoryChunk[]> SearchMemoryAsync(string query, int topK = 5, string? conversationId = null)
+    public async Task<MemoryChunk[]> SearchMemoryAsync(string query, int topK = 5, string? conversationId = null, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         if (_faissIndex.Count == 0)
         {
             return Array.Empty<MemoryChunk>();
         }
 
-        var queryEmbedding = await _llmService.GetEmbedding(query);
+        var queryEmbedding = await _llmService.GetEmbedding(query, cancellationToken);
         var (vectorIds, similarities) = await _faissIndex.SearchAsync(queryEmbedding, topK);
 
         await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         var memories = new List<MemoryChunk>();
 
         foreach (var (vectorId, similarity) in vectorIds.Zip(similarities))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var command = connection.CreateCommand();
             command.CommandText = @"
                 SELECT Id, Text, Source, Tags, Timestamp, ConversationId
@@ -145,8 +155,8 @@ public class MemoryService : IMemoryService
             ";
             command.Parameters.AddWithValue("$vectorId", vectorId);
 
-            await using var reader = await command.ExecuteReaderAsync();
-            if (await reader.ReadAsync())
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            if (await reader.ReadAsync(cancellationToken))
             {
                 var tags = JsonSerializer.Deserialize<string[]>(reader.GetString(3)) ?? Array.Empty<string>();
                 
@@ -168,10 +178,12 @@ public class MemoryService : IMemoryService
             .ToArray();
     }
 
-    public async Task<ConversationContext> GetConversationContextAsync(string conversationId, int messageCount = 10)
+    public async Task<ConversationContext> GetConversationContextAsync(string conversationId, int messageCount = 10, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         // Get recent messages
         var messagesCommand = connection.CreateCommand();
@@ -186,8 +198,8 @@ public class MemoryService : IMemoryService
         messagesCommand.Parameters.AddWithValue("$limit", messageCount);
 
         var messages = new List<ChatMessage>();
-        await using var reader = await messagesCommand.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await messagesCommand.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
         {
             messages.Add(new ChatMessage
             {
@@ -209,8 +221,8 @@ public class MemoryService : IMemoryService
         memoriesCommand.Parameters.AddWithValue("$conversationId", conversationId);
 
         var memories = new List<MemoryChunk>();
-        await using var memReader = await memoriesCommand.ExecuteReaderAsync();
-        while (await memReader.ReadAsync())
+        await using var memReader = await memoriesCommand.ExecuteReaderAsync(cancellationToken);
+        while (await memReader.ReadAsync(cancellationToken))
         {
             var tags = JsonSerializer.Deserialize<string[]>(memReader.GetString(3)) ?? Array.Empty<string>();
             
@@ -234,10 +246,12 @@ public class MemoryService : IMemoryService
         };
     }
 
-    public async Task SaveMessageAsync(string conversationId, string role, string content)
+    public async Task SaveMessageAsync(string conversationId, string role, string content, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -250,15 +264,17 @@ public class MemoryService : IMemoryService
         command.Parameters.AddWithValue("$content", content);
         command.Parameters.AddWithValue("$timestamp", DateTime.UtcNow.ToString("O"));
 
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task<string> CreateConversationAsync()
+    public async Task<string> CreateConversationAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         var conversationId = Guid.NewGuid().ToString();
 
         await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -269,16 +285,18 @@ public class MemoryService : IMemoryService
         command.Parameters.AddWithValue("$createdAt", DateTime.UtcNow.ToString("O"));
         command.Parameters.AddWithValue("$updatedAt", DateTime.UtcNow.ToString("O"));
 
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(cancellationToken);
         _logger.LogInformation("Created conversation {ConversationId}", conversationId);
 
         return conversationId;
     }
 
-    public async Task CompactMemoriesAsync(DateTime olderThan)
+    public async Task CompactMemoriesAsync(DateTime olderThan, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -287,14 +305,16 @@ public class MemoryService : IMemoryService
         ";
         command.Parameters.AddWithValue("$threshold", olderThan.ToString("O"));
 
-        var deleted = await command.ExecuteNonQueryAsync();
+        var deleted = await command.ExecuteNonQueryAsync(cancellationToken);
         _logger.LogInformation("Compacted {Count} old memories", deleted);
     }
 
-    public async Task StoreClarificationQuestionsAsync(string conversationId, string[] questions)
+    public async Task StoreClarificationQuestionsAsync(string conversationId, string[] questions, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -306,15 +326,17 @@ public class MemoryService : IMemoryService
         command.Parameters.AddWithValue("$questions", JsonSerializer.Serialize(questions));
         command.Parameters.AddWithValue("$createdAt", DateTime.UtcNow.ToString("O"));
 
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(cancellationToken);
         _logger.LogInformation("Stored {Count} clarification questions for conversation {ConversationId}", 
             questions.Length, conversationId);
     }
 
-    public async Task<string[]?> GetClarificationQuestionsAsync(string conversationId)
+    public async Task<string[]?> GetClarificationQuestionsAsync(string conversationId, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -326,8 +348,8 @@ public class MemoryService : IMemoryService
         ";
         command.Parameters.AddWithValue("$conversationId", conversationId);
 
-        await using var reader = await command.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (await reader.ReadAsync(cancellationToken))
         {
             var questionsJson = reader.GetString(0);
             var questions = JsonSerializer.Deserialize<string[]>(questionsJson);
@@ -340,10 +362,12 @@ public class MemoryService : IMemoryService
         return null;
     }
 
-    public async Task ClearClarificationQuestionsAsync(string conversationId)
+    public async Task ClearClarificationQuestionsAsync(string conversationId, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -352,7 +376,7 @@ public class MemoryService : IMemoryService
         ";
         command.Parameters.AddWithValue("$conversationId", conversationId);
 
-        var deleted = await command.ExecuteNonQueryAsync();
+        var deleted = await command.ExecuteNonQueryAsync(cancellationToken);
         _logger.LogInformation("Cleared {Count} clarification question record(s) for conversation {ConversationId}", 
             deleted, conversationId);
     }

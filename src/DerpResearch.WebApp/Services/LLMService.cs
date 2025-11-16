@@ -60,8 +60,11 @@ public class LLMService : ILLMService
 
     public async IAsyncEnumerable<string> ChatCompletionStream(
         ChatMessage[] messages,
-        string deploymentName = "gpt-4o")
+        string deploymentName = "gpt-4o",
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         var deployment = _config[$"AzureOpenAI:Deployments:{deploymentName}"] ?? deploymentName;
         var chatClient = _client.GetChatClient(deployment);
 
@@ -75,8 +78,10 @@ public class LLMService : ILLMService
             }
         ).ToList();
 
-        await foreach (var update in chatClient.CompleteChatStreamingAsync(chatMessages))
+        await foreach (var update in chatClient.CompleteChatStreamingAsync(chatMessages, cancellationToken: cancellationToken))
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            
             foreach (var contentPart in update.ContentUpdate)
             {
                 yield return contentPart.Text;
@@ -86,8 +91,11 @@ public class LLMService : ILLMService
 
     public async Task<string> ChatCompletion(
         ChatMessage[] messages,
-        string deploymentName = "gpt-4o")
+        string deploymentName = "gpt-4o",
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         var deployment = _config[$"AzureOpenAI:Deployments:{deploymentName}"] ?? deploymentName;
         
         // Log configuration details for debugging
@@ -112,30 +120,35 @@ public class LLMService : ILLMService
             }
         ).ToList();
 
-        var response = await chatClient.CompleteChatAsync(chatMessages);
+        var response = await chatClient.CompleteChatAsync(chatMessages, cancellationToken: cancellationToken);
         return response.Value.Content[0].Text;
     }
 
-    public async Task<float[]> GetEmbedding(string text)
+    public async Task<float[]> GetEmbedding(string text, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         var deployment = _config["AzureOpenAI:Deployments:Embedding"] ?? "text-embedding-3-large";
         var embeddingClient = _client.GetEmbeddingClient(deployment);
 
-        var response = await embeddingClient.GenerateEmbeddingAsync(text);
+        var response = await embeddingClient.GenerateEmbeddingAsync(text, cancellationToken: cancellationToken);
         return response.Value.ToFloats().ToArray();
     }
 
     public async Task<T?> GetStructuredOutput<T>(
         string prompt,
-        string deploymentName = "gpt-4o") where T : class
+        string deploymentName = "gpt-4o",
+        CancellationToken cancellationToken = default) where T : class
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         var messages = new[]
         {
             new ChatMessage { Role = "system", Content = "You are a helpful assistant that responds in JSON format." },
             new ChatMessage { Role = "user", Content = prompt }
         };
 
-        var response = await ChatCompletion(messages, deploymentName);
+        var response = await ChatCompletion(messages, deploymentName, cancellationToken);
 
         try
         {
