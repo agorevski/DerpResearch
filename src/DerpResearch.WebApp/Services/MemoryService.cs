@@ -128,7 +128,7 @@ public class MemoryService : IMemoryService
         }
 
         var queryEmbedding = await _llmService.GetEmbedding(query);
-        var (vectorIds, similarities) = _faissIndex.Search(queryEmbedding, topK);
+        var (vectorIds, similarities) = await _faissIndex.SearchAsync(queryEmbedding, topK);
 
         await using var connection = _dbInitializer.CreateConnection();
         await connection.OpenAsync();

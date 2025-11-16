@@ -109,7 +109,7 @@ public class PersistentFaissIndexTests : IDisposable
 
         // Verify we can search with loaded vectors
         var query = new float[] { 1.5f, 2.5f, 3.5f };
-        var (ids, distances) = index2.Search(query, topK: 2);
+        var (ids, distances) = await index2.SearchAsync(query, topK: 2);
         Assert.Equal(2, ids.Length);
         Assert.Equal(2, distances.Length);
     }
@@ -135,7 +135,7 @@ public class PersistentFaissIndexTests : IDisposable
 
         // Act - Search for vector similar to vector1
         var query = new float[] { 1.0f, 0.0f, 0.0f };
-        var (ids, distances) = index.Search(query, topK: 2);
+        var (ids, distances) = await index.SearchAsync(query, topK: 2);
 
         // Assert
         Assert.Equal(2, ids.Length);
@@ -153,7 +153,7 @@ public class PersistentFaissIndexTests : IDisposable
         var query = new float[] { 1.0f, 2.0f, 3.0f };
 
         // Act
-        var (ids, distances) = index.Search(query, topK: 5);
+        var (ids, distances) = await index.SearchAsync(query, topK: 5);
 
         // Assert
         Assert.Empty(ids);
@@ -175,7 +175,7 @@ public class PersistentFaissIndexTests : IDisposable
 
         // Act - Request more vectors than available
         var query = new float[] { 1.0f, 0.0f, 0.0f };
-        var (ids, distances) = index.Search(query, topK: 10);
+        var (ids, distances) = await index.SearchAsync(query, topK: 10);
 
         // Assert
         Assert.Equal(2, ids.Length); // Should only return 2 vectors
@@ -271,7 +271,7 @@ public class PersistentFaissIndexTests : IDisposable
         await index.AddVectorAsync(vector1, connection);
 
         // Act
-        var (ids, distances) = index.Search(vector1, topK: 1);
+        var (ids, distances) = await index.SearchAsync(vector1, topK: 1);
 
         // Assert
         Assert.Single(ids);
@@ -325,11 +325,106 @@ public class PersistentFaissIndexTests : IDisposable
         await index2.LoadFromDatabaseAsync(connection);
 
         // Search with original embedding - should find itself with perfect similarity
-        var (ids, distances) = index2.Search(originalEmbedding, topK: 1);
+        var (ids, distances) = await index2.SearchAsync(originalEmbedding, topK: 1);
 
         // Assert
         Assert.Single(ids);
         Assert.Equal(vectorId, ids[0]);
         Assert.InRange(distances[0], 0.999f, 1.001f); // Near-perfect similarity
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithCancellationToken_ShouldRespectCancellation()
+    {
+        // Arrange
+        await _dbInitializer.InitializeAsync();
+        var index = new PersistentFaissIndex(dimension: 100, logger: _mockLogger.Object);
+
+        await using var connection = _dbInitializer.CreateConnection();
+        await connection.OpenAsync();
+
+        // Add many vectors to make search take longer
+        for (int i = 0; i < 1000; i++)
+        {
+            var embedding = new float[100];
+            for (int j = 0; j < 100; j++)
+            {
+                embedding[j] = (float)(i + j * 0.1);
+            }
+            await index.AddVectorAsync(embedding, connection);
+        }
+
+        var query = new float[100];
+        for (int j = 0; j < 100; j++)
+        {
+            query[j] = (float)(j * 0.5);
+        }
+
+        // Act - Cancel immediately
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Assert - Should throw OperationCanceledException (or derived TaskCanceledException)
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await index.SearchAsync(query, topK: 10, cancellationToken: cts.Token));
+    }
+
+    [Fact]
+    public async Task SearchAsync_ConcurrentSearches_ShouldReturnConsistentResults()
+    {
+        // Arrange
+        await _dbInitializer.InitializeAsync();
+        var index = new PersistentFaissIndex(dimension: 3, logger: _mockLogger.Object);
+
+        await using var connection = _dbInitializer.CreateConnection();
+        await connection.OpenAsync();
+
+        // Add test vectors
+        await index.AddVectorAsync(new float[] { 1.0f, 0.0f, 0.0f }, connection);
+        await index.AddVectorAsync(new float[] { 0.0f, 1.0f, 0.0f }, connection);
+        await index.AddVectorAsync(new float[] { 0.0f, 0.0f, 1.0f }, connection);
+
+        var query1 = new float[] { 1.0f, 0.0f, 0.0f };
+        var query2 = new float[] { 0.0f, 1.0f, 0.0f };
+
+        // Act - Run concurrent searches
+        var task1 = index.SearchAsync(query1, topK: 2);
+        var task2 = index.SearchAsync(query2, topK: 2);
+        var task3 = index.SearchAsync(query1, topK: 2);
+
+        await Task.WhenAll(task1, task2, task3);
+
+        // Assert - Results should be consistent
+        var result1 = await task1;
+        var result2 = await task2;
+        var result3 = await task3;
+
+        Assert.Equal(2, result1.ids.Length);
+        Assert.Equal(2, result2.ids.Length);
+        Assert.Equal(2, result3.ids.Length);
+
+        // Same query should give same results
+        Assert.Equal(result1.ids[0], result3.ids[0]);
+        Assert.Equal(result1.ids[1], result3.ids[1]);
+        Assert.Equal(result1.distances[0], result3.distances[0], precision: 5);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithIncorrectDimension_ShouldThrowException()
+    {
+        // Arrange
+        await _dbInitializer.InitializeAsync();
+        var index = new PersistentFaissIndex(dimension: 3, logger: _mockLogger.Object);
+
+        await using var connection = _dbInitializer.CreateConnection();
+        await connection.OpenAsync();
+
+        await index.AddVectorAsync(new float[] { 1.0f, 0.0f, 0.0f }, connection);
+
+        var wrongQuery = new float[] { 1.0f, 0.0f }; // Only 2 dimensions
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await index.SearchAsync(wrongQuery, topK: 1));
     }
 }

@@ -192,33 +192,23 @@ public class LLMService : ILLMService
 
 ---
 
-### 5. Mixing Synchronous and Asynchronous Code 🟢
+### 5. ~~Mixing Synchronous and Asynchronous Code~~ ✅ FIXED
 
-**Location**: `SimpleFaissIndex.cs`
+**Status**: ✅ **RESOLVED** (2025-11-16)
 
-**Issue**: CPU-bound operations in async methods without proper threading:
+**Solution Implemented**:
+- Converted `Search()` to `SearchAsync()` in both `PersistentFaissIndex` and `SimpleFaissIndex`
+- CPU-bound vector similarity calculations now offloaded to thread pool using `Task.Run()`
+- Added `CancellationToken` support for long-running searches
+- Updated `MemoryService.SearchMemoryAsync()` to use the new async method
+- All 12 `PersistentFaissIndex` tests updated and passing
 
+**Key Changes**:
 ```csharp
+// Before: Synchronous, blocks async caller
 public (int[] ids, float[] distances) Search(float[] queryEmbedding, int topK)
-{
-    // CPU-intensive operation on caller's thread
-    foreach (var kvp in _vectors)
-    {
-        var similarity = CosineSimilarity(queryEmbedding, kvp.Value);
-        similarities.Add((kvp.Key, similarity));
-    }
-}
-```
 
-**Impact**:
-
-- Blocks async operations
-- Thread pool starvation
-- Poor scalability under load
-
-**Recommended Solution**:
-
-```csharp
+// After: Async with proper thread pool offloading
 public async Task<(int[] ids, float[] distances)> SearchAsync(
     float[] queryEmbedding, 
     int topK,
@@ -226,25 +216,20 @@ public async Task<(int[] ids, float[] distances)> SearchAsync(
 {
     return await Task.Run(() =>
     {
-        // CPU-bound work on thread pool
-        var similarities = new List<(int id, float similarity)>();
-        foreach (var kvp in _vectors)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var similarity = CosineSimilarity(queryEmbedding, kvp.Value);
-            similarities.Add((kvp.Key, similarity));
-        }
-        
-        var topResults = similarities
-            .OrderByDescending(x => x.similarity)
-            .Take(topK)
-            .ToArray();
-            
-        return (topResults.Select(x => x.id).ToArray(),
-                topResults.Select(x => x.similarity).ToArray());
+        // CPU-intensive cosine similarity calculations
+        // Now on thread pool, not blocking async operations
     }, cancellationToken);
 }
 ```
+
+**Benefits**:
+- ✅ No longer blocks async operations during vector search
+- ✅ CPU-bound work properly offloaded to thread pool
+- ✅ Cancellation support for long-running searches
+- ✅ Better scalability under load
+- ✅ Follows async/await best practices
+
+**Original Issue**: CPU-bound cosine similarity operations (3072-dimension vectors) were executing synchronously on the async caller's thread, causing thread pool starvation and poor scalability.
 
 ---
 

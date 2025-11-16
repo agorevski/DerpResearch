@@ -41,8 +41,12 @@ public class SimpleFaissIndex
 
     /// <summary>
     /// Search for similar vectors using cosine similarity
+    /// CPU-bound operation is offloaded to thread pool to avoid blocking async operations
     /// </summary>
-    public (int[] ids, float[] distances) Search(float[] queryEmbedding, int topK)
+    public async Task<(int[] ids, float[] distances)> SearchAsync(
+        float[] queryEmbedding, 
+        int topK,
+        CancellationToken cancellationToken = default)
     {
         if (queryEmbedding.Length != _dimension)
         {
@@ -54,23 +58,28 @@ public class SimpleFaissIndex
             return (Array.Empty<int>(), Array.Empty<float>());
         }
 
-        var similarities = new List<(int id, float similarity)>();
-
-        foreach (var kvp in _vectors)
+        // Offload CPU-bound work to thread pool to avoid blocking the async caller
+        return await Task.Run(() =>
         {
-            var similarity = CosineSimilarity(queryEmbedding, kvp.Value);
-            similarities.Add((kvp.Key, similarity));
-        }
+            var similarities = new List<(int id, float similarity)>();
 
-        var topResults = similarities
-            .OrderByDescending(x => x.similarity)
-            .Take(topK)
-            .ToArray();
+            foreach (var kvp in _vectors)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var similarity = CosineSimilarity(queryEmbedding, kvp.Value);
+                similarities.Add((kvp.Key, similarity));
+            }
 
-        var ids = topResults.Select(x => x.id).ToArray();
-        var distances = topResults.Select(x => x.similarity).ToArray();
+            var topResults = similarities
+                .OrderByDescending(x => x.similarity)
+                .Take(topK)
+                .ToArray();
 
-        return (ids, distances);
+            var ids = topResults.Select(x => x.id).ToArray();
+            var distances = topResults.Select(x => x.similarity).ToArray();
+
+            return (ids, distances);
+        }, cancellationToken);
     }
 
     /// <summary>
