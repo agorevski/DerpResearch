@@ -14,15 +14,14 @@ This document identifies development anti-patterns found in the DerpResearch cod
 ## Table of Contents
 
 1. [Architecture Anti-Patterns](#architecture-anti-patterns)
-2. [Async/Await Anti-Patterns](#asyncawait-anti-patterns)
-3. [State Management Anti-Patterns](#state-management-anti-patterns)
-4. [Configuration Anti-Patterns](#configuration-anti-patterns)
-5. [Type Safety Anti-Patterns](#type-safety-anti-patterns)
-6. [Database Anti-Patterns](#database-anti-patterns)
-7. [Resilience Anti-Patterns](#resilience-anti-patterns)
-8. [Domain Modeling Anti-Patterns](#domain-modeling-anti-patterns)
-9. [Logging Anti-Patterns](#logging-anti-patterns)
-10. [Testing Anti-Patterns](#testing-anti-patterns)
+2. [State Management Anti-Patterns](#state-management-anti-patterns)
+3. [Configuration Anti-Patterns](#configuration-anti-patterns)
+4. [Type Safety Anti-Patterns](#type-safety-anti-patterns)
+5. [Database Anti-Patterns](#database-anti-patterns)
+6. [Resilience Anti-Patterns](#resilience-anti-patterns)
+7. [Domain Modeling Anti-Patterns](#domain-modeling-anti-patterns)
+8. [Logging Anti-Patterns](#logging-anti-patterns)
+9. [Testing Anti-Patterns](#testing-anti-patterns)
 
 ---
 
@@ -32,7 +31,7 @@ This document identifies development anti-patterns found in the DerpResearch cod
 
 **Location**: `Services/OrchestratorService.cs`
 
-**Issue**: The `OrchestratorService` class has grown to 600+ lines and handles too many responsibilities:
+**Issue**: The `OrchestratorService` class is approximately 486 lines and handles too many responsibilities:
 
 - Workflow orchestration
 - Agent coordination
@@ -48,7 +47,7 @@ This document identifies development anti-patterns found in the DerpResearch cod
 ```csharp
 public class OrchestratorService : IOrchestratorService
 {
-    // 10+ dependencies injected
+    // 10 dependencies injected
     private readonly IClarificationAgent _clarificationAgent;
     private readonly IPlannerAgent _plannerAgent;
     private readonly ISearchAgent _searchAgent;
@@ -104,87 +103,9 @@ public interface IIterativeResearchManager
 
 ---
 
-## Async/Await Anti-Patterns
-
-### 2. No Cancellation Token Support 🟡
-
-**Location**: Multiple async methods throughout codebase
-
-**Issue**: Long-running operations don't accept `CancellationToken` parameters, making them impossible to cancel.
-
-**Code Example**:
-
-```csharp
-// OrchestratorService.cs - 600+ line workflow with no cancellation
-public async IAsyncEnumerable<string> ProcessDeepResearchAsync(
-    string prompt, 
-    string conversationId, 
-    int derpificationLevel = 100, 
-    string[]? clarificationAnswers = null)
-{
-    // No way to cancel this expensive operation
-    // Multiple LLM calls, web searches, embeddings...
-}
-
-// MemoryService.cs - Multiple expensive embedding calls
-public async Task<string> StoreMemoryAsync(
-    string text, 
-    string source, 
-    string[] tags, 
-    string? conversationId = null)
-{
-    // Loops through chunks calling LLM API
-    var embedding = await _llmService.GetEmbedding(chunk);
-}
-```
-
-**Impact**:
-
-- Cannot cancel expensive research operations
-- Poor user experience (no way to stop long searches)
-- Resource waste on abandoned requests
-- Potential memory leaks from uncancelled async operations
-- Costs money on abandoned LLM API calls
-
-**Recommended Solution**:
-
-```csharp
-public async IAsyncEnumerable<string> ProcessDeepResearchAsync(
-    string prompt, 
-    string conversationId, 
-    int derpificationLevel = 100, 
-    string[]? clarificationAnswers = null,
-    [EnumeratorCancellation] CancellationToken cancellationToken = default)
-{
-    // Check cancellation at each step
-    cancellationToken.ThrowIfCancellationRequested();
-    
-    var plan = await _plannerAgent.CreatePlanAsync(
-        prompt, context, derpificationLevel, cancellationToken);
-    
-    // Pass through to all sub-operations
-}
-
-public async Task<string> StoreMemoryAsync(
-    string text, 
-    string source, 
-    string[] tags, 
-    string? conversationId = null,
-    CancellationToken cancellationToken = default)
-{
-    foreach (var chunk in chunks)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var embedding = await _llmService.GetEmbedding(chunk, cancellationToken);
-    }
-}
-```
-
----
-
 ## State Management Anti-Patterns
 
-### 3. Static Mutable State 🟢
+### 2. Static Mutable State 🟢
 
 **Location**: `Services/OrchestratorService.cs`
 
@@ -231,7 +152,7 @@ services.Configure<JsonOptions>(options =>
 
 ## Configuration Anti-Patterns
 
-### 4. Magic Strings Throughout Codebase 🟡
+### 3. Magic Strings Throughout Codebase 🟡
 
 **Location**: Multiple files
 
@@ -318,7 +239,7 @@ public class LLMService : ILLMService
 
 ---
 
-### 5. Magic Numbers 🟢
+### 4. Magic Numbers 🟢
 
 **Location**: Multiple files
 
@@ -376,7 +297,7 @@ await Task.Delay(RateLimitConstants.SearchDelayMilliseconds);
 
 ## Type Safety Anti-Patterns
 
-### 6. Primitive Obsession 🟡
+### 5. Primitive Obsession 🟡
 
 **Location**: Throughout codebase
 
@@ -437,7 +358,7 @@ public async Task SaveMessageAsync(
 
 ---
 
-### 7. Stringly-Typed Code 🟢
+### 6. Stringly-Typed Code 🟢
 
 **Location**: `Models/DTOs.cs`, streaming logic
 
@@ -497,11 +418,11 @@ var result = type switch
 
 ## Database Anti-Patterns
 
-### 8. Manual Connection Management 🟡
+### 7. Verbose Database Access Pattern 🟢
 
 **Location**: `Services/MemoryService.cs`, `Memory/DatabaseInitializer.cs`
 
-**Issue**: Manual creation and disposal of database connections throughout:
+**Issue**: While connections are now properly managed with `await using`, the data access code remains verbose and repetitive:
 
 ```csharp
 await using var connection = _dbInitializer.CreateConnection();
@@ -516,10 +437,9 @@ await command.ExecuteNonQueryAsync();
 **Impact**:
 
 - Verbose, repetitive code
-- Potential connection leaks if exception occurs
-- No connection pooling visibility
-- Difficult to test
 - No transaction support
+- Difficult to test
+- Boilerplate for every database operation
 
 **Recommended Solution**:
 
@@ -577,7 +497,7 @@ public class MemoryRepository : IMemoryRepository
 
 ## Resilience Anti-Patterns
 
-### 9. Missing Circuit Breaker for LLM Calls 🟡
+### 8. Missing Circuit Breaker for LLM Calls 🟡
 
 **Location**: `Services/LLMService.cs`
 
@@ -677,7 +597,7 @@ public class ResilientLLMService : ILLMService
 
 ---
 
-### 10. No Timeout for LLM Operations 🟢
+### 9. No Timeout for LLM Operations 🟢
 
 **Location**: `Services/MemoryService.cs`, `LLMService.cs`
 
@@ -740,7 +660,7 @@ public class LLMService : ILLMService
 
 ## Domain Modeling Anti-Patterns
 
-### 11. Anemic Domain Models 🟡
+### 10. Anemic Domain Models 🟡
 
 **Location**: `Models/Entities.cs`, `Models/DTOs.cs`
 
@@ -841,7 +761,7 @@ public class Message
 
 ---
 
-### 12. Missing Value Objects 🟢
+### 11. Missing Value Objects 🟢
 
 **Location**: Throughout codebase
 
@@ -905,7 +825,7 @@ public readonly record struct ConfidenceScore
 
 ## Logging Anti-Patterns
 
-### 13. Inconsistent Log Levels 🟢
+### 12. Inconsistent Log Levels 🟢
 
 **Location**: Multiple files
 
@@ -956,7 +876,7 @@ _logger.LogCritical(ex, "Database initialization failed - application cannot sta
 
 ---
 
-### 14. Sensitive Data in Logs 🟡
+### 13. Sensitive Data in Logs 🟡
 
 **Location**: `Services/LLMService.cs`
 
@@ -1005,7 +925,7 @@ _logger.LogInformation("Configuration - Endpoint: {Endpoint}, ApiKey: {ApiKey}",
 
 ---
 
-### 15. Missing Correlation IDs 🟡
+### 14. Missing Correlation IDs 🟡
 
 **Location**: Throughout request handling
 
@@ -1055,7 +975,7 @@ _logger.LogInformation("Processing request"); // Includes CorrelationId in struc
 
 ## Testing Anti-Patterns
 
-### 16. Hard to Test Services 🟡
+### 15. Hard to Test Services 🟡
 
 **Location**: Multiple services
 
@@ -1115,7 +1035,7 @@ public class MockAzureOpenAIClientFactory : IAzureOpenAIClientFactory
 
 ---
 
-### 17. Missing Integration Tests 🟢
+### 16. Missing Integration Tests 🟢
 
 **Location**: Test project
 
@@ -1168,22 +1088,21 @@ public class DeepResearchWorkflowTests
 | # | Anti-Pattern | Severity | Location |
 |---|-------------|----------|----------|
 | 1 | God Object | 🔴 Critical | OrchestratorService |
-| 2 | No Cancellation Tokens | 🟡 High | Multiple async methods |
-| 3 | Static Mutable State | 🟢 Medium | OrchestratorService |
-| 4 | Magic Strings | 🟡 High | Multiple |
-| 5 | Magic Numbers | 🟢 Medium | Multiple |
-| 6 | Primitive Obsession | 🟡 High | Throughout |
-| 7 | Stringly-Typed | 🟢 Medium | DTOs |
-| 8 | Manual Connections | 🟡 High | MemoryService |
-| 9 | Missing LLM Circuit Breaker | 🟡 High | LLMService |
-| 10 | No LLM Timeouts | 🟢 Medium | LLMService |
-| 11 | Anemic Models | 🟡 High | Entities |
-| 12 | Missing Value Objects | 🟢 Medium | Throughout |
-| 13 | Inconsistent Logging | 🟢 Medium | Multiple |
-| 14 | Sensitive Data Logs | 🟡 High | LLMService |
-| 15 | Missing Correlation IDs | 🟡 High | Logging |
-| 16 | Hard to Test | 🟡 High | Services |
-| 17 | Missing Integration Tests | 🟢 Medium | Tests |
+| 2 | Static Mutable State | 🟢 Medium | OrchestratorService |
+| 3 | Magic Strings | 🟡 High | Multiple |
+| 4 | Magic Numbers | 🟢 Medium | Multiple |
+| 5 | Primitive Obsession | 🟡 High | Throughout |
+| 6 | Stringly-Typed | 🟢 Medium | DTOs |
+| 7 | Verbose Database Access | 🟢 Medium | MemoryService |
+| 8 | Missing LLM Circuit Breaker | 🟡 High | LLMService |
+| 9 | No LLM Timeouts | 🟢 Medium | LLMService |
+| 10 | Anemic Models | 🟡 High | Entities |
+| 11 | Missing Value Objects | 🟢 Medium | Throughout |
+| 12 | Inconsistent Logging | 🟢 Medium | Multiple |
+| 13 | Sensitive Data Logs | 🟡 High | LLMService |
+| 14 | Missing Correlation IDs | 🟡 High | Logging |
+| 15 | Hard to Test | 🟡 High | Services |
+| 16 | Missing Integration Tests | 🟢 Medium | Tests |
 
 ## Priority Recommendations
 
@@ -1193,19 +1112,18 @@ public class DeepResearchWorkflowTests
 
 ### High Priority (🟡)
 
-1. Add CancellationToken support to async operations
-2. Implement circuit breaker for LLM calls
-3. Fix exception swallowing in chunking loop
-4. Add proper transaction support to database operations
-5. Create strongly-typed configuration classes
-6. Implement correlation IDs for observability
+1. Implement circuit breaker for LLM calls
+2. Create strongly-typed configuration classes
+3. Implement correlation IDs for observability
+4. Address sensitive data in logs
+5. Improve testability of services
 
 ### Medium Priority (🟢)
 
 1. Add timeouts for LLM operations
 2. Extract hardcoded chunking constants to configuration
 3. Convert StreamToken.Type to enum
-4. Improve database connection management
+4. Consider using Dapper or EF Core for data access
 5. Standardize logging practices
 6. Add value objects for domain concepts
 7. Improve test coverage with integration tests
@@ -1215,13 +1133,12 @@ public class DeepResearchWorkflowTests
 ### Phase 1: Address Critical Issues (1-2 weeks)
 
 1. Break down OrchestratorService into focused services
-2. Add CancellationToken support to long-running operations
 
 ### Phase 2: Improve Architecture (2-3 weeks)
 
 1. Implement circuit breaker and retry for LLM calls
 2. Create strongly-typed configuration
-3. Add proper transaction support
+3. Consider ORM for data access
 
 ### Phase 3: Enhance Maintainability (2-3 weeks)
 
