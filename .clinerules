@@ -4,7 +4,9 @@
 
 - Always build and test the project after completing a series of changes
   - Build with ```dotnet build```
-  - Test using ```dotnet test```
+  - Test using ```dotnet test --filter "FullyQualifiedName!~UI"``` (excludes UI tests that require running server)
+- Maintain **90%+ code coverage** - run tests with coverage before committing
+- Check anti-patterns documentation before implementing new patterns
 
 ## 🏗️ Architecture & Code Organization
 
@@ -18,6 +20,7 @@
 - Place interfaces in `Interfaces/` folder, implementations in their respective folders (`Agents/`, `Services/`)
 - Use the orchestrator pattern (`OrchestratorService`) to coordinate multi-agent workflows
 - Follow repository pattern with clear interface contracts
+- Use decorator pattern for resilience (see `ResilientSearchService`, `ResilientWebContentFetcher`)
 
 ## 🎯 C# & .NET Conventions
 
@@ -189,7 +192,7 @@
 ## 🧪 Testing & Quality
 
 - Write unit tests for core business logic (agents, services)
-- Mock external dependencies (LLM API, search API, web fetcher)
+- Mock external dependencies (LLM API, search API, web fetcher) using TestMockFactory helpers
 - Test edge cases:
   - Empty search results
   - Malformed LLM responses
@@ -199,6 +202,11 @@
 - Verify citation parsing and formatting
 - Test iterative research workflow (low confidence → additional searches)
 - Validate conversation context retrieval and memory search
+- **Maintain 90%+ line coverage** - GitHub Actions will fail if coverage drops below threshold
+- Use test helpers in `Tests/Helpers/`:
+  - `TestMockFactory` - Creates mock objects with sensible defaults
+  - `TestDataBuilder` - Creates test data objects
+- Run unit tests excluding UI tests: `dotnet test --filter "FullyQualifiedName!~UI"`
 
 ## 📝 Code Documentation
 
@@ -262,3 +270,19 @@
 - Tag releases with semantic versioning
 - Maintain CHANGELOG.md for notable changes
 - Review and update .clinerules as patterns evolve
+- **CI/CD**: GitHub Actions runs on push/PR with:
+  - Build verification
+  - Unit tests with coverage
+  - 90% coverage threshold enforcement
+  - Coverage report artifacts
+
+## 📋 Anti-Patterns to Avoid
+
+See [docs/ANTI-PATTERNS.md](docs/ANTI-PATTERNS.md) for detailed analysis. Key issues to avoid:
+
+- **God Objects**: Keep classes focused; OrchestratorService is flagged for refactoring
+- **Magic Strings**: Use strongly-typed configuration classes
+- **Exception Swallowing**: Always log and optionally re-throw; don't silently continue
+- **Missing Cancellation Tokens**: Pass CancellationToken through async call chains
+- **Manual Connection Management**: Consider using Dapper or EF Core for cleaner data access
+- **No Transactions**: Use transactions for multi-step database operations

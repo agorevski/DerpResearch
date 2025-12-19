@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      
+      - name: Restore dependencies
+        run: dotnet restore
+      
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+      
+      - name: Run Unit Tests with Coverage
+        run: |
+          dotnet test --no-build --configuration Release \
+            --collect:"XPlat Code Coverage" \
+            --results-directory TestResults \
+            --filter "FullyQualifiedName!~UI" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+      
+      - name: Install ReportGenerator
+        run: dotnet tool install --global dotnet-reportgenerator-globaltool
+      
+      - name: Generate Coverage Report
+        run: |
+          reportgenerator \
+            "-reports:TestResults/**/coverage.cobertura.xml" \
+            "-targetdir:CoverageReport" \
+            "-reporttypes:Html;Cobertura;TextSummary"
+      
+      - name: Display Coverage Summary
+        run: cat CoverageReport/Summary.txt
+      
+      - name: Check Coverage Threshold
+        run: |
+          # Extract line coverage from cobertura report
+          COVERAGE=$(grep -oP 'line-rate="\K[0-9.]+' TestResults/**/coverage.cobertura.xml | head -1)
+          COVERAGE_PCT=$(echo "$COVERAGE * 100" | bc)
+          echo "Line Coverage: $COVERAGE_PCT%"
+          
+          # Set threshold (90% target - currently starting lower due to low baseline)
+          THRESHOLD=90
+          
+          # Check if coverage meets threshold
+          if (( $(echo "$COVERAGE_PCT < $THRESHOLD" | bc -l) )); then
+            echo "❌ Coverage ($COVERAGE_PCT%) is below threshold ($THRESHOLD%)"
+            exit 1
+          else
+            echo "✅ Coverage ($COVERAGE_PCT%) meets threshold ($THRESHOLD%)"
+          fi
+      
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: CoverageReport/
+      
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: TestResults/**/coverage.cobertura.xml
+          fail_ci_if_error: false
