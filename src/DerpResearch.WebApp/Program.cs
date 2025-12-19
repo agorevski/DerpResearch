@@ -123,7 +123,9 @@ try
     else
     {
         startupLogger.LogInformation(">>> Registering REAL Services:");
-        startupLogger.LogInformation("  ✓ LLMService");
+        startupLogger.LogInformation("  ✓ AzureOpenAIProvider");
+        builder.Services.AddSingleton<ILLMProvider, AzureOpenAIProvider>();
+        startupLogger.LogInformation("  ✓ LLMService (using ILLMProvider abstraction)");
         builder.Services.AddSingleton<ILLMService, LLMService>();
         
         // Register services with optional resilience wrappers

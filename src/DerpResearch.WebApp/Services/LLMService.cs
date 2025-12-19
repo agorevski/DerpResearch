@@ -1,61 +1,26 @@
-using Azure;
-using Azure.AI.OpenAI;
 using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Models;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using OpenAI.Chat;
-using OpenAI.Embeddings;
 using ChatMessage = DeepResearch.WebApp.Models.ChatMessage;
 
 namespace DeepResearch.WebApp.Services;
 
+/// <summary>
+/// LLM service that delegates to a provider abstraction.
+/// Allows swapping between Azure OpenAI, OpenAI, Anthropic, or other providers.
+/// </summary>
 public class LLMService : ILLMService
 {
-    private readonly AzureOpenAIClient _client;
-    private readonly IConfiguration _config;
+    private readonly ILLMProvider _provider;
     private readonly ILogger<LLMService> _logger;
 
-    public LLMService(IConfiguration config, ILogger<LLMService> logger)
+    public LLMService(ILLMProvider provider, ILogger<LLMService> logger)
     {
-        _config = config;
+        _provider = provider;
         _logger = logger;
 
-        try
-        {
-            _logger.LogInformation("LLMService constructor starting...");
-            
-            var endpointStr = _config["AzureOpenAI:Endpoint"];
-            var apiKey = _config["AzureOpenAI:ApiKey"];
-
-            _logger.LogInformation("Configuration check - Endpoint present: {HasEndpoint}, ApiKey present: {HasApiKey}",
-                !string.IsNullOrEmpty(endpointStr), !string.IsNullOrEmpty(apiKey));
-
-            if (string.IsNullOrEmpty(endpointStr))
-            {
-                _logger.LogError("AzureOpenAI:Endpoint configuration is missing or empty");
-                throw new InvalidOperationException("AzureOpenAI:Endpoint configuration is missing. Please set this in appsettings.Production.json or as an environment variable.");
-            }
-
-            if (string.IsNullOrEmpty(apiKey))
-            {
-                _logger.LogError("AzureOpenAI:ApiKey configuration is missing or empty");
-                throw new InvalidOperationException("AzureOpenAI:ApiKey configuration is missing. Please set this in appsettings.Production.json or as an environment variable.");
-            }
-
-            _logger.LogInformation("Creating Azure OpenAI client with endpoint: {Endpoint}", endpointStr);
-            var endpoint = new Uri(endpointStr);
-            _client = new AzureOpenAIClient(endpoint, new AzureKeyCredential(apiKey));
-            
-            _logger.LogInformation("LLMService initialized successfully with endpoint: {Endpoint}", endpointStr);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogCritical(ex, "Failed to initialize LLMService: {Message}. Type: {Type}", 
-                ex.Message, ex.GetType().Name);
-            _logger.LogCritical("Stack trace: {StackTrace}", ex.StackTrace);
-            throw;
-        }
+        _logger.LogInformation("LLMService initialized with provider: {Provider}", _provider.ProviderName);
     }
 
     public async IAsyncEnumerable<string> ChatCompletionStream(
@@ -63,29 +28,15 @@ public class LLMService : ILLMService
         string deploymentName = "gpt-4o",
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        
-        var deployment = _config[$"AzureOpenAI:Deployments:{deploymentName}"] ?? deploymentName;
-        var chatClient = _client.GetChatClient(deployment);
-
-        var chatMessages = messages.Select(m => 
-            m.Role.ToLower() switch
-            {
-                "system" => new SystemChatMessage(m.Content) as OpenAI.Chat.ChatMessage,
-                "user" => new UserChatMessage(m.Content) as OpenAI.Chat.ChatMessage,
-                "assistant" => new AssistantChatMessage(m.Content) as OpenAI.Chat.ChatMessage,
-                _ => throw new ArgumentException($"Unknown role: {m.Role}")
-            }
-        ).ToList();
-
-        await foreach (var update in chatClient.CompleteChatStreamingAsync(chatMessages, cancellationToken: cancellationToken))
+        var request = new LLMRequest
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            
-            foreach (var contentPart in update.ContentUpdate)
-            {
-                yield return contentPart.Text;
-            }
+            Messages = messages,
+            ModelName = deploymentName
+        };
+
+        await foreach (var token in _provider.StreamCompletionAsync(request, cancellationToken))
+        {
+            yield return token;
         }
     }
 
@@ -94,45 +45,21 @@ public class LLMService : ILLMService
         string deploymentName = "gpt-4o",
         CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        
-        var deployment = _config[$"AzureOpenAI:Deployments:{deploymentName}"] ?? deploymentName;
-        
-        // Log configuration details for debugging
-        var endpoint = _config["AzureOpenAI:Endpoint"];
-        var apiKey = _config["AzureOpenAI:ApiKey"];
-        var maskedKey = apiKey != null && apiKey.Length > 8 
-            ? $"{apiKey.Substring(0, 4)}...{apiKey.Substring(apiKey.Length - 4)}" 
-            : "NOT_SET";
-        
-        _logger.LogInformation("ChatCompletion - Deployment requested: {RequestedDeployment}, Resolved: {ResolvedDeployment}, Endpoint: {Endpoint}, ApiKey: {MaskedKey}",
-            deploymentName, deployment, endpoint, maskedKey);
-        
-        var chatClient = _client.GetChatClient(deployment);
+        _logger.LogDebug("ChatCompletion - Model: {Model}, Provider: {Provider}",
+            deploymentName, _provider.ProviderName);
 
-        var chatMessages = messages.Select(m =>
-            m.Role.ToLower() switch
-            {
-                "system" => new SystemChatMessage(m.Content) as OpenAI.Chat.ChatMessage,
-                "user" => new UserChatMessage(m.Content) as OpenAI.Chat.ChatMessage,
-                "assistant" => new AssistantChatMessage(m.Content) as OpenAI.Chat.ChatMessage,
-                _ => throw new ArgumentException($"Unknown role: {m.Role}")
-            }
-        ).ToList();
+        var request = new LLMRequest
+        {
+            Messages = messages,
+            ModelName = deploymentName
+        };
 
-        var response = await chatClient.CompleteChatAsync(chatMessages, cancellationToken: cancellationToken);
-        return response.Value.Content[0].Text;
+        return await _provider.CompleteAsync(request, cancellationToken);
     }
 
     public async Task<float[]> GetEmbedding(string text, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        
-        var deployment = _config["AzureOpenAI:Deployments:Embedding"] ?? "text-embedding-3-large";
-        var embeddingClient = _client.GetEmbeddingClient(deployment);
-
-        var response = await embeddingClient.GenerateEmbeddingAsync(text, cancellationToken: cancellationToken);
-        return response.Value.ToFloats().ToArray();
+        return await _provider.GetEmbeddingAsync(text, cancellationToken);
     }
 
     public async Task<T?> GetStructuredOutput<T>(

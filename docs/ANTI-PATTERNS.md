@@ -104,116 +104,9 @@ public interface IIterativeResearchManager
 
 ---
 
-### 2. Tight Coupling to Azure OpenAI 🟡
-
-**Location**: `Services/LLMService.cs`
-
-**Issue**: Direct dependency on Azure OpenAI SDK throughout the codebase makes it impossible to swap providers or properly mock.
-
-**Code Example**:
-
-```csharp
-public class LLMService : ILLMService
-{
-    private readonly AzureOpenAIClient _client; // Tight coupling
-    
-    public LLMService(IConfiguration config, ILogger<LLMService> logger)
-    {
-        var endpoint = new Uri(config["AzureOpenAI:Endpoint"]);
-        _client = new AzureOpenAIClient(endpoint, new AzureKeyCredential(apiKey));
-    }
-}
-```
-
-**Impact**:
-
-- Cannot switch to OpenAI, Anthropic, or local models without code changes
-- Difficult to unit test without hitting real API
-- Vendor lock-in
-- No abstraction for different model capabilities
-
-**Recommended Solution**:
-Introduce provider abstraction:
-
-```csharp
-public interface ILLMProvider
-{
-    IAsyncEnumerable<string> StreamCompletionAsync(LLMRequest request);
-    Task<string> CompleteAsync(LLMRequest request);
-    Task<float[]> GetEmbeddingAsync(string text);
-}
-
-public class AzureOpenAIProvider : ILLMProvider { }
-public class OpenAIProvider : ILLMProvider { }
-public class AnthropicProvider : ILLMProvider { }
-
-public class LLMService : ILLMService
-{
-    private readonly ILLMProvider _provider;
-    
-    public LLMService(ILLMProvider provider) // Dependency injection
-    {
-        _provider = provider;
-    }
-}
-```
-
----
-
 ## Async/Await Anti-Patterns
 
-### 3. ~~Fire-and-Forget with Task.Run~~ ✅ FIXED
-
-**Status**: ✅ **RESOLVED** (2025-11-15)
-
-**Solution Implemented**: 
-- Created `DatabaseInitializationService` as proper `BackgroundService`
-- Implemented thread-safe `InitializationHealthCheck`
-- Application now stops if database initialization fails (fail-fast pattern)
-- Comprehensive test coverage added
-
-**See**: [CRITICAL-FIXES-SUMMARY.md](./CRITICAL-FIXES-SUMMARY.md#issue-1-fire-and-forget-database-initialization-critical-)
-
----
-
-### 4. ~~Inconsistent ConfigureAwait Usage~~ ✅ FIXED
-
-**Status**: ✅ **RESOLVED** (2025-11-15)
-
-**Solution Implemented**:
-- Removed all `.ConfigureAwait(false)` calls from codebase
-- Established policy in `.clinerules`: **Do NOT use `.ConfigureAwait(false)` in ASP.NET Core code**
-- Rationale: ASP.NET Core doesn't use `SynchronizationContext`, so `ConfigureAwait(false)` provides no benefit
-- All 100+ async/await operations now follow consistent pattern (no ConfigureAwait)
-
-**Original Issue**: Only 2 locations used `.ConfigureAwait(false)`, creating inconsistent behavior across 100+ async operations.
-
-**Policy**: For ASP.NET Core applications, `ConfigureAwait(false)` is unnecessary and should not be used.
-
----
-
-### 5. ~~Mixing Synchronous and Asynchronous Code~~ ✅ FIXED
-
-**Status**: ✅ **RESOLVED** (2025-11-16)
-
-**Solution Implemented**:
-- Converted `Search()` to `SearchAsync()` in both `PersistentFaissIndex` and `SimpleFaissIndex`
-- CPU-bound vector similarity calculations now offloaded to thread pool using `Task.Run()`
-- Added `CancellationToken` support for long-running searches
-- Updated `MemoryService.SearchMemoryAsync()` to use the new async method
-- All 12 `PersistentFaissIndex` tests updated and passing
-
-**Benefits**:
-- ✅ No longer blocks async operations during vector search
-- ✅ CPU-bound work properly offloaded to thread pool
-- ✅ Cancellation support for long-running searches
-- ✅ Better scalability under load
-
-**Original Issue**: CPU-bound cosine similarity operations were executing synchronously on the async caller's thread, causing thread pool starvation.
-
----
-
-### 6. No Cancellation Token Support 🟡
+### 2. No Cancellation Token Support 🟡
 
 **Location**: Multiple async methods throughout codebase
 
@@ -291,29 +184,7 @@ public async Task<string> StoreMemoryAsync(
 
 ## State Management Anti-Patterns
 
-### 7. ~~In-Memory State Loss~~ ✅ FIXED
-
-**Status**: ✅ **RESOLVED** (2025-11-15)
-
-**Solution Implemented**:
-- Created `PersistentFaissIndex` that stores vectors in SQLite BLOB storage
-- Vectors are persisted to `VectorStore` table on addition
-- Vectors are automatically loaded from database on application startup
-- Full round-trip persistence ensures no data loss on restart
-- Thread-safe implementation with proper locking
-- Comprehensive test coverage (12 tests, all passing)
-
-**Benefits**:
-- ✅ Vectors survive application restarts
-- ✅ No need to regenerate expensive embeddings
-- ✅ Simple SQLite-based solution (no additional infrastructure)
-- ✅ Maintains existing performance characteristics
-
-**Original Issue**: All vector embeddings stored in memory with no persistence mechanism, causing complete data loss on application restart.
-
----
-
-### 8. Static Mutable State 🟢
+### 3. Static Mutable State 🟢
 
 **Location**: `Services/OrchestratorService.cs`
 
@@ -360,7 +231,7 @@ services.Configure<JsonOptions>(options =>
 
 ## Configuration Anti-Patterns
 
-### 9. Magic Strings Throughout Codebase 🟡
+### 4. Magic Strings Throughout Codebase 🟡
 
 **Location**: Multiple files
 
@@ -447,7 +318,7 @@ public class LLMService : ILLMService
 
 ---
 
-### 10. Magic Numbers 🟢
+### 5. Magic Numbers 🟢
 
 **Location**: Multiple files
 
@@ -505,7 +376,7 @@ await Task.Delay(RateLimitConstants.SearchDelayMilliseconds);
 
 ## Type Safety Anti-Patterns
 
-### 11. Primitive Obsession 🟡
+### 6. Primitive Obsession 🟡
 
 **Location**: Throughout codebase
 
@@ -566,7 +437,7 @@ public async Task SaveMessageAsync(
 
 ---
 
-### 12. Stringly-Typed Code 🟢
+### 7. Stringly-Typed Code 🟢
 
 **Location**: `Models/DTOs.cs`, streaming logic
 
@@ -626,7 +497,7 @@ var result = type switch
 
 ## Database Anti-Patterns
 
-### 13. Manual Connection Management 🟡
+### 8. Manual Connection Management 🟡
 
 **Location**: `Services/MemoryService.cs`, `Memory/DatabaseInitializer.cs`
 
@@ -704,264 +575,9 @@ public class MemoryRepository : IMemoryRepository
 
 ---
 
-### 14. No Transaction Support 🟡
-
-**Location**: `Services/MemoryService.cs`
-
-**Issue**: Multi-step operations without transactions:
-
-```csharp
-// MemoryService.StoreMemoryAsync - loops through chunks
-for (int i = 0; i < chunks.Length; i++)
-{
-    try
-    {
-        var embedding = await _llmService.GetEmbedding(chunk);
-        var vectorId = await _faissIndex.AddVectorAsync(embedding, connection);
-        
-        // If this INSERT fails, vector is already stored
-        await command.ExecuteNonQueryAsync();
-    }
-    catch (Exception ex)
-    {
-        // Continues - partial state
-    }
-}
-```
-
-**Impact**:
-
-- Partial state on failures
-- Data inconsistency
-- Difficult to rollback
-- No ACID guarantees
-- Orphaned vectors in index without corresponding database records
-
-**Recommended Solution**:
-
-```csharp
-public async Task<string> StoreMemoryAsync(
-    string text, 
-    string source, 
-    string[] tags, 
-    string? conversationId = null)
-{
-    await using var connection = _dbInitializer.CreateConnection();
-    await connection.OpenAsync();
-    
-    await using var transaction = await connection.BeginTransactionAsync();
-    try
-    {
-        var primaryId = Guid.NewGuid().ToString();
-        var chunks = TextChunker.ChunkText(text, maxTokens: 3000, overlapTokens: 100);
-        
-        foreach (var (chunk, index) in chunks.Select((c, i) => (c, i)))
-        {
-            var embedding = await _llmService.GetEmbedding(chunk);
-            var vectorId = await _faissIndex.AddVectorAsync(embedding, connection);
-            await InsertMemoryRecordAsync(connection, chunk, vectorId, ...);
-        }
-        
-        await transaction.CommitAsync();
-        return primaryId;
-    }
-    catch
-    {
-        await transaction.RollbackAsync();
-        throw;
-    }
-}
-```
-
----
-
-### 15. Exception Swallowing in Chunking Loop 🟡
-
-**Location**: `Services/MemoryService.cs` - `StoreMemoryAsync()` method
-
-**Issue**: The method continues silently when chunks fail to store, potentially losing data without proper visibility:
-
-```csharp
-for (int i = 0; i < chunks.Length; i++)
-{
-    try
-    {
-        var embedding = await _llmService.GetEmbedding(chunk);
-        // ... store chunk
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Failed to store chunk {Index}/{Total}...");
-        // Continue with next chunk even if one fails
-    }
-}
-
-return primaryId; // Returns success even if all chunks failed!
-```
-
-**Impact**:
-
-- Silent data loss without user awareness
-- Function returns success even if all chunks failed
-- No retry mechanism for transient failures
-- Difficult to diagnose embedding API issues
-- Poor user experience (no feedback on partial failures)
-
-**Recommended Solution**:
-
-```csharp
-public async Task<StoreMemoryResult> StoreMemoryAsync(
-    string text, 
-    string source, 
-    string[] tags, 
-    string? conversationId = null)
-{
-    var chunks = TextChunker.ChunkText(text, maxTokens: 3000, overlapTokens: 100);
-    var failedChunks = new List<(int index, Exception error)>();
-    var successfulChunks = 0;
-    
-    for (int i = 0; i < chunks.Length; i++)
-    {
-        try
-        {
-            // Store chunk with retry logic
-            await StoreChunkWithRetryAsync(chunks[i], i, ...);
-            successfulChunks++;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to store chunk {Index}/{Total} after retries", 
-                i + 1, chunks.Length);
-            failedChunks.Add((i, ex));
-            
-            // Fail fast if too many chunks fail
-            if (failedChunks.Count > chunks.Length / 2)
-            {
-                throw new InvalidOperationException(
-                    $"Failed to store more than 50% of chunks ({failedChunks.Count}/{chunks.Length})");
-            }
-        }
-    }
-    
-    return new StoreMemoryResult
-    {
-        Success = failedChunks.Count == 0,
-        TotalChunks = chunks.Length,
-        SuccessfulChunks = successfulChunks,
-        FailedChunks = failedChunks.Count,
-        MemoryId = primaryId
-    };
-}
-```
-
----
-
-### 16. Database Connection Not Properly Scoped 🟢
-
-**Location**: `Services/MemoryService.cs` - `StoreMemoryAsync()` method
-
-**Issue**: Single connection kept open for entire chunking loop, even when individual chunks fail:
-
-```csharp
-await using var connection = _dbInitializer.CreateConnection();
-await connection.OpenAsync();
-
-for (int i = 0; i < chunks.Length; i++)
-{
-    try { ... }
-    catch 
-    { 
-        continue; // Connection stays open, continues loop
-    }
-}
-```
-
-**Impact**:
-
-- Connection held open unnecessarily during expensive LLM API calls
-- Connection pool exhaustion under high load
-- Potential deadlocks with SQLite's write locking
-- Resource waste
-
-**Recommended Solution**:
-
-```csharp
-// Option 1: Create connection per chunk
-for (int i = 0; i < chunks.Length; i++)
-{
-    await using var connection = _dbInitializer.CreateConnection();
-    await connection.OpenAsync();
-    
-    try
-    {
-        var embedding = await _llmService.GetEmbedding(chunk);
-        await StoreChunkAsync(connection, chunk, embedding, ...);
-    }
-    catch { ... }
-}
-
-// Option 2: Use transaction and rollback on failure
-await using var connection = _dbInitializer.CreateConnection();
-await connection.OpenAsync();
-await using var transaction = await connection.BeginTransactionAsync();
-
-try
-{
-    // All chunks in transaction
-    foreach (var chunk in chunks)
-    {
-        await StoreChunkAsync(connection, chunk, ...);
-    }
-    await transaction.CommitAsync();
-}
-catch
-{
-    await transaction.RollbackAsync();
-    throw;
-}
-```
-
----
-
-### 17. SQL Injection Risk (Mitigated) 🟢
-
-**Location**: Database code
-
-**Current State**: Code uses parameterized queries correctly:
-
-```csharp
-command.Parameters.AddWithValue("$id", id);
-command.Parameters.AddWithValue("$conversationId", conversationId);
-```
-
-**Note**: This is actually done correctly, but worth documenting as a best practice to maintain.
-
-**Recommendation**: Continue using parameterized queries. Consider adding linting rule to prevent raw string concatenation in SQL.
-
----
-
 ## Resilience Anti-Patterns
 
-### 18. ~~No Circuit Breaker Pattern~~ ✅ FIXED
-
-**Status**: ✅ **RESOLVED** (2025-11-15)
-
-**Solution Implemented**:
-- Created `ResilientSearchService` decorator with:
-  - **Circuit Breaker**: Opens after 5 failures, 30-second break duration
-  - **Retry Logic**: 3 attempts with exponential backoff
-  - **Rate Limiting**: Configurable requests per second
-  - **Graceful Degradation**: Returns empty results instead of crashing
-- Created `ResilientWebContentFetcher` with similar patterns
-- Thread-safe implementation
-- Comprehensive test coverage (11 tests)
-- Configurable via `UseResilientServices` flag (defaults to true)
-
-**See**: [CRITICAL-FIXES-SUMMARY.md](./CRITICAL-FIXES-SUMMARY.md#issue-3-missing-circuit-breaker-for-external-calls-critical-)
-
----
-
-### 19. Missing Circuit Breaker for LLM Calls 🟡
+### 9. Missing Circuit Breaker for LLM Calls 🟡
 
 **Location**: `Services/LLMService.cs`
 
@@ -1061,7 +677,7 @@ public class ResilientLLMService : ILLMService
 
 ---
 
-### 20. No Timeout for LLM Operations 🟢
+### 10. No Timeout for LLM Operations 🟢
 
 **Location**: `Services/MemoryService.cs`, `LLMService.cs`
 
@@ -1122,24 +738,9 @@ public class LLMService : ILLMService
 
 ---
 
-### 21. ~~No Rate Limiting~~ ✅ FIXED
-
-**Status**: ✅ **RESOLVED** (2025-11-15)
-
-**Solution Implemented**:
-- Rate limiting integrated into `ResilientSearchService`
-- Configurable requests per second (default: 1/second)
-- Configurable max concurrent requests (default: 2)
-- Thread-safe implementation with proper locking
-- Test coverage for rate limiting behavior
-
-**See**: [CRITICAL-FIXES-SUMMARY.md](./CRITICAL-FIXES-SUMMARY.md#issue-3-missing-circuit-breaker-for-external-calls-critical-)
-
----
-
 ## Domain Modeling Anti-Patterns
 
-### 22. Anemic Domain Models 🟡
+### 11. Anemic Domain Models 🟡
 
 **Location**: `Models/Entities.cs`, `Models/DTOs.cs`
 
@@ -1240,7 +841,7 @@ public class Message
 
 ---
 
-### 23. Missing Value Objects 🟢
+### 12. Missing Value Objects 🟢
 
 **Location**: Throughout codebase
 
@@ -1304,7 +905,7 @@ public readonly record struct ConfidenceScore
 
 ## Logging Anti-Patterns
 
-### 24. Inconsistent Log Levels 🟢
+### 13. Inconsistent Log Levels 🟢
 
 **Location**: Multiple files
 
@@ -1355,7 +956,7 @@ _logger.LogCritical(ex, "Database initialization failed - application cannot sta
 
 ---
 
-### 25. Sensitive Data in Logs 🟡
+### 14. Sensitive Data in Logs 🟡
 
 **Location**: `Services/LLMService.cs`
 
@@ -1404,7 +1005,7 @@ _logger.LogInformation("Configuration - Endpoint: {Endpoint}, ApiKey: {ApiKey}",
 
 ---
 
-### 26. Missing Correlation IDs 🟡
+### 15. Missing Correlation IDs 🟡
 
 **Location**: Throughout request handling
 
@@ -1454,7 +1055,7 @@ _logger.LogInformation("Processing request"); // Includes CorrelationId in struc
 
 ## Testing Anti-Patterns
 
-### 27. Hard to Test Services 🟡
+### 16. Hard to Test Services 🟡
 
 **Location**: Multiple services
 
@@ -1514,7 +1115,7 @@ public class MockAzureOpenAIClientFactory : IAzureOpenAIClientFactory
 
 ---
 
-### 28. Missing Integration Tests 🟢
+### 17. Missing Integration Tests 🟢
 
 **Location**: Test project
 
@@ -1564,36 +1165,25 @@ public class DeepResearchWorkflowTests
 
 ## Summary Table
 
-| # | Anti-Pattern | Severity | Location | Status |
-|---|-------------|----------|----------|--------|
-| 1 | God Object | 🔴 Critical | OrchestratorService | Active |
-| 2 | Tight Coupling to Azure | 🟡 High | LLMService | Active |
-| 3 | ~~Fire-and-Forget Task~~ | ✅ FIXED | Program.cs | Fixed 2025-11-15 |
-| 4 | ~~Inconsistent ConfigureAwait~~ | ✅ FIXED | Multiple | Fixed 2025-11-15 |
-| 5 | ~~Sync in Async~~ | ✅ FIXED | SimpleFaissIndex | Fixed 2025-11-16 |
-| 6 | No Cancellation Tokens | 🟡 High | Multiple async methods | Active |
-| 7 | ~~In-Memory State Loss~~ | ✅ FIXED | PersistentFaissIndex | Fixed 2025-11-15 |
-| 8 | Static Mutable State | 🟢 Medium | OrchestratorService | Active |
-| 9 | Magic Strings | 🟡 High | Multiple | Active |
-| 10 | Magic Numbers | 🟢 Medium | Multiple | Active |
-| 11 | Primitive Obsession | 🟡 High | Throughout | Active |
-| 12 | Stringly-Typed | 🟢 Medium | DTOs | Active |
-| 13 | Manual Connections | 🟡 High | MemoryService | Active |
-| 14 | No Transactions | 🟡 High | MemoryService | Active |
-| 15 | Exception Swallowing | 🟡 High | MemoryService.StoreMemoryAsync | Active |
-| 16 | Connection Not Scoped | 🟢 Medium | MemoryService | Active |
-| 17 | SQL Injection (OK) | 🟢 Low | Database | Mitigated |
-| 18 | ~~No Circuit Breaker~~ | ✅ FIXED | SearchService | Fixed 2025-11-15 |
-| 19 | No LLM Circuit Breaker | 🟡 High | LLMService | Active |
-| 20 | No LLM Timeouts | 🟢 Medium | LLMService | Active |
-| 21 | ~~No Rate Limiting~~ | ✅ FIXED | SearchService | Fixed 2025-11-15 |
-| 22 | Anemic Models | 🟡 High | Entities | Active |
-| 23 | Missing Value Objects | 🟢 Medium | Throughout | Active |
-| 24 | Inconsistent Logging | 🟢 Medium | Multiple | Active |
-| 25 | Sensitive Data Logs | 🟡 High | LLMService | Active |
-| 26 | Missing Correlation IDs | 🟡 High | Logging | Active |
-| 27 | Hard to Test | 🟡 High | Services | Active |
-| 28 | Missing Integration Tests | 🟢 Medium | Tests | Active |
+| # | Anti-Pattern | Severity | Location |
+|---|-------------|----------|----------|
+| 1 | God Object | 🔴 Critical | OrchestratorService |
+| 2 | No Cancellation Tokens | 🟡 High | Multiple async methods |
+| 3 | Static Mutable State | 🟢 Medium | OrchestratorService |
+| 4 | Magic Strings | 🟡 High | Multiple |
+| 5 | Magic Numbers | 🟢 Medium | Multiple |
+| 6 | Primitive Obsession | 🟡 High | Throughout |
+| 7 | Stringly-Typed | 🟢 Medium | DTOs |
+| 8 | Manual Connections | 🟡 High | MemoryService |
+| 9 | Missing LLM Circuit Breaker | 🟡 High | LLMService |
+| 10 | No LLM Timeouts | 🟢 Medium | LLMService |
+| 11 | Anemic Models | 🟡 High | Entities |
+| 12 | Missing Value Objects | 🟢 Medium | Throughout |
+| 13 | Inconsistent Logging | 🟢 Medium | Multiple |
+| 14 | Sensitive Data Logs | 🟡 High | LLMService |
+| 15 | Missing Correlation IDs | 🟡 High | Logging |
+| 16 | Hard to Test | 🟡 High | Services |
+| 17 | Missing Integration Tests | 🟢 Medium | Tests |
 
 ## Priority Recommendations
 
@@ -1608,8 +1198,7 @@ public class DeepResearchWorkflowTests
 3. Fix exception swallowing in chunking loop
 4. Add proper transaction support to database operations
 5. Create strongly-typed configuration classes
-6. Extract Azure OpenAI coupling
-7. Implement correlation IDs for observability
+6. Implement correlation IDs for observability
 
 ### Medium Priority (🟢)
 
@@ -1625,19 +1214,14 @@ public class DeepResearchWorkflowTests
 
 ### Phase 1: Address Critical Issues (1-2 weeks)
 
-1. ✅ ~~Fix fire-and-forget database initialization~~ **COMPLETED**
-2. ✅ ~~Implement vector persistence~~ **COMPLETED**
-3. ✅ ~~Add circuit breaker for external calls~~ **COMPLETED**
-4. Break down OrchestratorService into focused services
-5. Add CancellationToken support to long-running operations
+1. Break down OrchestratorService into focused services
+2. Add CancellationToken support to long-running operations
 
 ### Phase 2: Improve Architecture (2-3 weeks)
 
 1. Implement circuit breaker and retry for LLM calls
 2. Create strongly-typed configuration
 3. Add proper transaction support
-4. Fix exception handling in chunking loop
-5. Extract Azure OpenAI provider abstraction
 
 ### Phase 3: Enhance Maintainability (2-3 weeks)
 
@@ -1649,27 +1233,5 @@ public class DeepResearchWorkflowTests
 
 ---
 
-## Recently Fixed Anti-Patterns
-
-### Summary of Fixes (2025-11-15 to 2025-11-16)
-
-**Critical Issues Resolved:**
-- ✅ **Issue #3**: Fire-and-Forget Database Initialization → `DatabaseInitializationService`
-- ✅ **Issue #4**: Inconsistent ConfigureAwait Usage → Removed all ConfigureAwait(false)
-- ✅ **Issue #5**: Mixing Sync/Async Code → `SimpleFaissIndex.SearchAsync()` with Task.Run
-- ✅ **Issue #6**: In-Memory State Loss → `PersistentFaissIndex` with SQLite BLOB storage
-- ✅ **Issue #15**: No Circuit Breaker Pattern → `ResilientSearchService` with circuit breaker, retry, and rate limiting
-- ✅ **Issue #17**: No Rate Limiting → Integrated into `ResilientSearchService`
-
-**Test Coverage Added:**
-- 3 tests for `DatabaseInitializationService`
-- 11 tests for `ResilientSearchService` and `CircuitBreaker`
-- 12 tests for `PersistentFaissIndex`
-- All 26 tests passing
-
-**For complete details, see**: [CRITICAL-FIXES-SUMMARY.md](./CRITICAL-FIXES-SUMMARY.md)
-
----
-
 *Document created: 2025-11-15*
-*Last updated: 2025-11-16 (Added 7 new anti-patterns, confirmed 6 fixes)*
+*Last updated: 2025-12-19*
