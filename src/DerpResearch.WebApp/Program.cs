@@ -1,5 +1,6 @@
 using DeepResearch.WebApp.Agents;
 using DeepResearch.WebApp.Interfaces;
+using DeepResearch.WebApp.Middleware;
 using DeepResearch.WebApp.Models;
 using DeepResearch.WebApp.Services;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -251,6 +252,11 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+
+// Add correlation ID middleware for distributed tracing
+// Must be early in the pipeline to ensure all requests get correlation IDs
+app.UseCorrelationId();
+
 app.UseAuthorization();
 
 // Map health checks endpoint - Azure App Service will use this
@@ -305,3 +311,6 @@ catch (Exception ex)
 }
 
 // InitializationHealthCheck moved to DatabaseInitializationService.cs
+
+// Expose Program class for integration tests
+public partial class Program { }

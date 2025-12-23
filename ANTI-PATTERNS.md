@@ -18,27 +18,13 @@ This document provides a summary of development anti-patterns identified in the 
 | # | Anti-Pattern | Severity | Location |
 |---|-------------|----------|----------|
 | 1 | **God Object Pattern** | 🔴 Critical | `OrchestratorService.cs` - 500+ lines handling too many responsibilities |
-| 6 | **Primitive Obsession** | 🟡 High | Throughout - Using strings for domain concepts (IDs, roles) |
-| 12 | **Missing Correlation IDs** | 🟡 High | Logging - No distributed tracing support |
-| 13 | **Missing Integration Tests** | 🟢 Medium | Tests - Only unit tests, no E2E workflow tests |
 
----
 
 ## Priority Recommendations
 
 ### Immediate (Critical 🔴)
 
 1. **Break down OrchestratorService** - Split into `WorkflowCoordinator`, `ProgressStreamingService`, `ClarificationManager`, `IterativeResearchManager`
-
-### High Priority (🟡)
-
-1. Implement correlation IDs for observability
-2. Add value objects for domain concepts (ConversationId, ConfidenceScore)
-
-### Medium Priority (🟢)
-
-1. Add integration tests for end-to-end workflows
-2. Improve logging consistency
 
 ---
 
