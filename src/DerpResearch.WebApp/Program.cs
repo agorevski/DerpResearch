@@ -199,6 +199,12 @@ catch (Exception ex)
     startupLogger.LogCritical(ex, "Failed to register some service: {Message}", ex.Message);
     throw;
 }
+
+// Register new specialized services (extracted from OrchestratorService)
+builder.Services.AddSingleton<IProgressStreamingService, ProgressStreamingService>();
+builder.Services.AddSingleton<IClarificationManager, ClarificationManager>();
+builder.Services.AddSingleton<IIterativeResearchManager, IterativeResearchManager>();
+
 // Register Orchestrator
 builder.Services.AddSingleton<IOrchestratorService, OrchestratorService>();
 
