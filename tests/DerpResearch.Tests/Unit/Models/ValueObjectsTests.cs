@@ -351,6 +351,52 @@ public class ValueObjectsTests
         result.Should().BeFalse();
     }
 
+    [Fact]
+    public void ValidatedUrl_TryCreate_ReturnsFalseForNull()
+    {
+        // Act
+        var result = ValidatedUrl.TryCreate(null, out _);
+
+        // Assert
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ValidatedUrl_TryCreate_ReturnsFalseForWhitespace()
+    {
+        // Act
+        var result = ValidatedUrl.TryCreate("   ", out _);
+
+        // Assert
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ValidatedUrl_ImplicitConversion_ReturnsValue()
+    {
+        // Arrange
+        var url = new ValidatedUrl("https://example.com");
+
+        // Act
+        string stringValue = url;
+
+        // Assert
+        stringValue.Should().Be("https://example.com");
+    }
+
+    [Fact]
+    public void ValidatedUrl_ToString_ReturnsValue()
+    {
+        // Arrange
+        var url = new ValidatedUrl("https://example.com/test");
+
+        // Act
+        var result = url.ToString();
+
+        // Assert
+        result.Should().Be("https://example.com/test");
+    }
+
     #endregion
 
     #region CorrelationId Tests
@@ -385,6 +431,168 @@ public class ValueObjectsTests
         // Act & Assert
         var action = () => new CorrelationId("");
         action.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void CorrelationId_TryParse_ReturnsTrueForValidString()
+    {
+        // Act
+        var result = CorrelationId.TryParse("valid-correlation-id", out var id);
+
+        // Assert
+        result.Should().BeTrue();
+        id.Value.Should().Be("valid-correlation-id");
+    }
+
+    [Fact]
+    public void CorrelationId_TryParse_ReturnsFalseForNull()
+    {
+        // Act
+        var result = CorrelationId.TryParse(null, out var id);
+
+        // Assert
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public void CorrelationId_TryParse_ReturnsFalseForWhitespace()
+    {
+        // Act
+        var result = CorrelationId.TryParse("   ", out var id);
+
+        // Assert
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public void CorrelationId_ImplicitConversion_ReturnsValue()
+    {
+        // Arrange
+        var id = CorrelationId.Parse("test-id");
+
+        // Act
+        string stringValue = id;
+
+        // Assert
+        stringValue.Should().Be("test-id");
+    }
+
+    [Fact]
+    public void CorrelationId_ToString_ReturnsValue()
+    {
+        // Arrange
+        var id = CorrelationId.Parse("test-correlation");
+
+        // Act
+        var result = id.ToString();
+
+        // Assert
+        result.Should().Be("test-correlation");
+    }
+
+    #endregion
+
+    #region Additional MemoryId Tests
+
+    [Fact]
+    public void MemoryId_Parse_CreatesFromString()
+    {
+        // Act
+        var id = MemoryId.Parse("mem-123");
+
+        // Assert
+        id.Value.Should().Be("mem-123");
+    }
+
+    [Fact]
+    public void MemoryId_Constructor_ThrowsOnEmpty()
+    {
+        // Act & Assert
+        var action = () => new MemoryId("");
+        action.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void MemoryId_ImplicitConversion_ReturnsValue()
+    {
+        // Arrange
+        var id = MemoryId.Parse("test-id");
+
+        // Act
+        string stringValue = id;
+
+        // Assert
+        stringValue.Should().Be("test-id");
+    }
+
+    [Fact]
+    public void MemoryId_ToString_ReturnsValue()
+    {
+        // Arrange
+        var id = MemoryId.Parse("mem-456");
+
+        // Act
+        var result = id.ToString();
+
+        // Assert
+        result.Should().Be("mem-456");
+    }
+
+    #endregion
+
+    #region Additional MessageId Tests
+
+    [Fact]
+    public void MessageId_Parse_CreatesFromString()
+    {
+        // Act
+        var id = MessageId.Parse("msg-123");
+
+        // Assert
+        id.Value.Should().Be("msg-123");
+    }
+
+    [Fact]
+    public void MessageId_ImplicitConversion_ReturnsValue()
+    {
+        // Arrange
+        var id = MessageId.Parse("test-id");
+
+        // Act
+        string stringValue = id;
+
+        // Assert
+        stringValue.Should().Be("test-id");
+    }
+
+    [Fact]
+    public void MessageId_ToString_ReturnsValue()
+    {
+        // Arrange
+        var id = MessageId.Parse("msg-456");
+
+        // Act
+        var result = id.ToString();
+
+        // Assert
+        result.Should().Be("msg-456");
+    }
+
+    #endregion
+
+    #region Additional VectorId Tests
+
+    [Fact]
+    public void VectorId_ToString_ReturnsValueAsString()
+    {
+        // Arrange
+        var id = VectorId.New(42);
+
+        // Act
+        var result = id.ToString();
+
+        // Assert
+        result.Should().Be("42");
     }
 
     #endregion

@@ -1,31 +1,31 @@
 Summary
-  Generated on: 12/23/2025 - 3:03:42 PM
-  Coverage date: 12/23/2025 - 3:03:33 PM
+  Generated on: 12/23/2025 - 3:14:00 PM
+  Coverage date: 12/23/2025 - 3:13:50 PM
   Parser: Cobertura
   Assemblies: 1
   Classes: 80
   Files: 34
-  Line coverage: 66.1%
-  Covered lines: 2749
-  Uncovered lines: 1409
+  Line coverage: 74.2%
+  Covered lines: 3089
+  Uncovered lines: 1069
   Coverable lines: 4158
   Total lines: 6434
-  Branch coverage: 57.3% (390 of 680)
-  Covered branches: 390
+  Branch coverage: 62.3% (424 of 680)
+  Covered branches: 424
   Total branches: 680
-  Method coverage: 71.3% (249 of 349)
-  Full method coverage: 65% (227 of 349)
-  Covered methods: 249
-  Fully covered methods: 227
+  Method coverage: 87.1% (304 of 349)
+  Full method coverage: 80.5% (281 of 349)
+  Covered methods: 304
+  Fully covered methods: 281
   Total methods: 349
 
-DerpResearch.WebApp                                                  66.1%
+DerpResearch.WebApp                                                  74.2%
   DeepResearch.WebApp.Agents.ClarificationAgent                       100%
-  DeepResearch.WebApp.Agents.MockClarificationAgent                     0%
-  DeepResearch.WebApp.Agents.MockPlannerAgent                           0%
-  DeepResearch.WebApp.Agents.MockReflectionAgent                        0%
-  DeepResearch.WebApp.Agents.MockSearchAgent                            0%
-  DeepResearch.WebApp.Agents.MockSynthesisAgent                         0%
+  DeepResearch.WebApp.Agents.MockClarificationAgent                  96.5%
+  DeepResearch.WebApp.Agents.MockPlannerAgent                        98.2%
+  DeepResearch.WebApp.Agents.MockReflectionAgent                      100%
+  DeepResearch.WebApp.Agents.MockSearchAgent                         96.9%
+  DeepResearch.WebApp.Agents.MockSynthesisAgent                       100%
   DeepResearch.WebApp.Agents.PlannerAgent                            93.6%
   DeepResearch.WebApp.Agents.ReflectionAgent                         97.4%
   DeepResearch.WebApp.Agents.SearchAgent                             92.4%
@@ -45,24 +45,24 @@ DerpResearch.WebApp                                                  66.1%
   DeepResearch.WebApp.Models.ClarificationResult                      100%
   DeepResearch.WebApp.Models.ClarificationUpdate                      100%
   DeepResearch.WebApp.Models.ConfidenceScore                         91.6%
-  DeepResearch.WebApp.Models.Conversation                               0%
+  DeepResearch.WebApp.Models.Conversation                             100%
   DeepResearch.WebApp.Models.ConversationContext                      100%
   DeepResearch.WebApp.Models.ConversationId                          94.4%
-  DeepResearch.WebApp.Models.CorrelationId                           44.4%
+  DeepResearch.WebApp.Models.CorrelationId                            100%
   DeepResearch.WebApp.Models.DeploymentConfiguration                  100%
   DeepResearch.WebApp.Models.GatheredInformation                      100%
-  DeepResearch.WebApp.Models.GoogleCustomSearchConfiguration            0%
+  DeepResearch.WebApp.Models.GoogleCustomSearchConfiguration          100%
   DeepResearch.WebApp.Models.GoogleSearchItem                         100%
   DeepResearch.WebApp.Models.GoogleSearchResponse                     100%
-  DeepResearch.WebApp.Models.LLMRequest                                 0%
-  DeepResearch.WebApp.Models.LLMResponse                                0%
+  DeepResearch.WebApp.Models.LLMRequest                               100%
+  DeepResearch.WebApp.Models.LLMResponse                              100%
   DeepResearch.WebApp.Models.MemoryChunk                               75%
   DeepResearch.WebApp.Models.MemoryConfiguration                      100%
-  DeepResearch.WebApp.Models.MemoryId                                  60%
-  DeepResearch.WebApp.Models.Message                                    0%
-  DeepResearch.WebApp.Models.MessageId                                 70%
+  DeepResearch.WebApp.Models.MemoryId                                 100%
+  DeepResearch.WebApp.Models.Message                                  100%
+  DeepResearch.WebApp.Models.MessageId                                100%
   DeepResearch.WebApp.Models.MessageRoleExtensions                   81.4%
-  DeepResearch.WebApp.Models.MockServicesConfiguration                  0%
+  DeepResearch.WebApp.Models.MockServicesConfiguration                100%
   DeepResearch.WebApp.Models.ProgressUpdate                           100%
   DeepResearch.WebApp.Models.ReflectionConfiguration                  100%
   DeepResearch.WebApp.Models.ReflectionResult                         100%
@@ -77,9 +77,9 @@ DerpResearch.WebApp                                                  66.1%
   DeepResearch.WebApp.Models.SourceUpdate                             100%
   DeepResearch.WebApp.Models.StoreMemoryResult                        100%
   DeepResearch.WebApp.Models.StreamToken                              100%
-  DeepResearch.WebApp.Models.TokenUsage                                 0%
-  DeepResearch.WebApp.Models.ValidatedUrl                            85.7%
-  DeepResearch.WebApp.Models.VectorId                                88.8%
+  DeepResearch.WebApp.Models.TokenUsage                               100%
+  DeepResearch.WebApp.Models.ValidatedUrl                             100%
+  DeepResearch.WebApp.Models.VectorId                                 100%
   DeepResearch.WebApp.Services.AzureOpenAIProvider                      0%
   DeepResearch.WebApp.Services.CircuitBreaker                        98.2%
   DeepResearch.WebApp.Services.ClarificationManager                   100%
@@ -95,7 +95,7 @@ DerpResearch.WebApp                                                  66.1%
   DeepResearch.WebApp.Services.ProgressStreamingService               100%
   DeepResearch.WebApp.Services.ResilientLLMService                   79.3%
   DeepResearch.WebApp.Services.ResilientSearchService                  95%
-  DeepResearch.WebApp.Services.ResilientWebContentFetcher               0%
+  DeepResearch.WebApp.Services.ResilientWebContentFetcher             100%
   DeepResearch.WebApp.Services.SearchService                            0%
   DeepResearch.WebApp.Services.TextChunker                           89.6%
   DeepResearch.WebApp.Services.WebContentFetcher                        0%

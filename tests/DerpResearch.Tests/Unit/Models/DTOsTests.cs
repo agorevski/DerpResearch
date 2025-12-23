@@ -261,3 +261,235 @@ public class AgentModelsTests
         result.Rationale.Should().BeEmpty();
     }
 }
+
+public class EntitiesTests
+{
+    [Fact]
+    public void MemoryChunk_DefaultValues_AreSet()
+    {
+        // Act
+        var chunk = new MemoryChunk();
+
+        // Assert
+        chunk.Id.Should().NotBeNullOrEmpty();
+        chunk.Text.Should().BeEmpty();
+        chunk.Source.Should().BeEmpty();
+        chunk.Tags.Should().BeEmpty();
+        chunk.Timestamp.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void SearchResult_DefaultValues_AreEmpty()
+    {
+        // Act
+        var result = new SearchResult();
+
+        // Assert
+        result.Title.Should().BeEmpty();
+        result.Url.Should().BeEmpty();
+        result.Snippet.Should().BeEmpty();
+        result.Content.Should().BeNull();
+    }
+
+    [Fact]
+    public void ConversationContext_DefaultValues_AreEmpty()
+    {
+        // Act
+        var context = new ConversationContext();
+
+        // Assert
+        context.ConversationId.Should().BeEmpty();
+        context.RecentMessages.Should().BeEmpty();
+        context.RelevantMemories.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ChatMessage_DefaultValues_AreEmpty()
+    {
+        // Act
+        var message = new ChatMessage();
+
+        // Assert
+        message.Role.Should().BeEmpty();
+        message.Content.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Conversation_DefaultValues_AreSet()
+    {
+        // Act
+        var conversation = new Conversation();
+
+        // Assert
+        conversation.Id.Should().NotBeNullOrEmpty();
+        conversation.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+        conversation.UpdatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void Message_DefaultValues_AreSet()
+    {
+        // Act
+        var message = new Message();
+
+        // Assert
+        message.Id.Should().NotBeNullOrEmpty();
+        message.ConversationId.Should().BeEmpty();
+        message.Role.Should().BeEmpty();
+        message.Content.Should().BeEmpty();
+        message.Timestamp.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void StoreMemoryResult_IsFullySuccessful_WhenNoFailures()
+    {
+        // Act
+        var result = new StoreMemoryResult
+        {
+            TotalChunks = 5,
+            SuccessfulChunks = 5,
+            FailedChunks = 0
+        };
+
+        // Assert
+        result.IsFullySuccessful.Should().BeTrue();
+        result.IsPartiallySuccessful.Should().BeFalse();
+        result.IsCompleteFailure.Should().BeFalse();
+    }
+
+    [Fact]
+    public void StoreMemoryResult_IsPartiallySuccessful_WhenSomeFailures()
+    {
+        // Act
+        var result = new StoreMemoryResult
+        {
+            TotalChunks = 5,
+            SuccessfulChunks = 3,
+            FailedChunks = 2
+        };
+
+        // Assert
+        result.IsFullySuccessful.Should().BeFalse();
+        result.IsPartiallySuccessful.Should().BeTrue();
+        result.IsCompleteFailure.Should().BeFalse();
+    }
+
+    [Fact]
+    public void StoreMemoryResult_IsCompleteFailure_WhenAllFail()
+    {
+        // Act
+        var result = new StoreMemoryResult
+        {
+            TotalChunks = 5,
+            SuccessfulChunks = 0,
+            FailedChunks = 5
+        };
+
+        // Assert
+        result.IsFullySuccessful.Should().BeFalse();
+        result.IsPartiallySuccessful.Should().BeFalse();
+        result.IsCompleteFailure.Should().BeTrue();
+    }
+
+    [Fact]
+    public void StoreMemoryResult_Empty_CreatesEmptyResult()
+    {
+        // Act
+        var result = StoreMemoryResult.Empty();
+
+        // Assert
+        result.TotalChunks.Should().Be(0);
+        result.SuccessfulChunks.Should().Be(0);
+        result.IsFullySuccessful.Should().BeFalse();
+    }
+}
+
+public class LLMModelsTests
+{
+    [Fact]
+    public void LLMRequest_SetsDefaultValues()
+    {
+        // Arrange
+        var messages = new[] { new ChatMessage { Role = "user", Content = "Hello" } };
+
+        // Act
+        var request = new LLMRequest { Messages = messages };
+
+        // Assert
+        request.Messages.Should().HaveCount(1);
+        request.ModelName.Should().Be("gpt-4o");
+        request.Temperature.Should().Be(0.7f);
+        request.MaxTokens.Should().BeNull();
+    }
+
+    [Fact]
+    public void LLMRequest_WithAllValues_SetsAll()
+    {
+        // Arrange
+        var messages = new[] { new ChatMessage { Role = "user", Content = "Hello" } };
+
+        // Act
+        var request = new LLMRequest
+        {
+            Messages = messages,
+            ModelName = "gpt-4o-mini",
+            Temperature = 0.5f,
+            MaxTokens = 1000
+        };
+
+        // Assert
+        request.ModelName.Should().Be("gpt-4o-mini");
+        request.Temperature.Should().Be(0.5f);
+        request.MaxTokens.Should().Be(1000);
+    }
+
+    [Fact]
+    public void LLMResponse_SetsContent()
+    {
+        // Act
+        var response = new LLMResponse
+        {
+            Content = "Hello World",
+            Model = "gpt-4o"
+        };
+
+        // Assert
+        response.Content.Should().Be("Hello World");
+        response.Model.Should().Be("gpt-4o");
+        response.Usage.Should().BeNull();
+    }
+
+    [Fact]
+    public void LLMResponse_WithUsage_SetsAll()
+    {
+        // Act
+        var response = new LLMResponse
+        {
+            Content = "Hello",
+            Usage = new TokenUsage
+            {
+                PromptTokens = 10,
+                CompletionTokens = 5,
+                TotalTokens = 15
+            }
+        };
+
+        // Assert
+        response.Usage.Should().NotBeNull();
+        response.Usage!.PromptTokens.Should().Be(10);
+        response.Usage.CompletionTokens.Should().Be(5);
+        response.Usage.TotalTokens.Should().Be(15);
+    }
+
+    [Fact]
+    public void TokenUsage_DefaultValues()
+    {
+        // Act
+        var usage = new TokenUsage();
+
+        // Assert
+        usage.PromptTokens.Should().Be(0);
+        usage.CompletionTokens.Should().Be(0);
+        usage.TotalTokens.Should().Be(0);
+    }
+}
