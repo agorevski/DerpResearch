@@ -223,4 +223,129 @@ public class TextChunkerTests
         // Verify overlap is less than maxTokens
         overlap.Should().BeLessThan(maxTokens);
     }
+
+    [Fact]
+    public void GetChunkIdentifier_ShouldReturnFormattedIdentifier()
+    {
+        // Arrange
+        var chunk = "This is a test chunk with some content for testing purposes.";
+
+        // Act
+        var identifier = TextChunker.GetChunkIdentifier(chunk, 0, 5);
+
+        // Assert
+        identifier.Should().Contain("[Chunk 1/5]");
+        identifier.Should().Contain("This is a test chunk");
+    }
+
+    [Fact]
+    public void GetChunkIdentifier_ShouldTruncateLongChunks()
+    {
+        // Arrange
+        var chunk = new string('A', 100);
+
+        // Act
+        var identifier = TextChunker.GetChunkIdentifier(chunk, 2, 10);
+
+        // Assert
+        identifier.Should().Contain("[Chunk 3/10]");
+        identifier.Should().Contain("...");
+        identifier.Length.Should().BeLessThan(100);
+    }
+
+    [Fact]
+    public void GetChunkIdentifier_ShouldHandleShortChunks()
+    {
+        // Arrange
+        var chunk = "Short";
+
+        // Act
+        var identifier = TextChunker.GetChunkIdentifier(chunk, 0, 1);
+
+        // Assert
+        identifier.Should().Be("[Chunk 1/1] Short");
+    }
+
+    [Fact]
+    public void ChunkText_ShouldHandleTextWithParagraphBreaks()
+    {
+        // Arrange
+        var paragraphs = Enumerable.Range(1, 50)
+            .Select(i => $"Paragraph {i}: " + string.Join(" ", Enumerable.Repeat("content", 50)));
+        var text = string.Join("\n\n", paragraphs);
+
+        // Act
+        var chunks = TextChunker.ChunkText(text, maxTokens: 500, overlapTokens: 50);
+
+        // Assert
+        chunks.Should().NotBeEmpty();
+        chunks.Should().HaveCountGreaterThan(1);
+    }
+
+    [Fact]
+    public void ChunkText_ShouldPreferParagraphBreaksOverSentences()
+    {
+        // Arrange - Create text with clear paragraph breaks
+        var text = string.Join("\n\n", Enumerable.Range(1, 100)
+            .Select(i => $"Paragraph {i}. This is content."));
+
+        // Act
+        var chunks = TextChunker.ChunkText(text, maxTokens: 200, overlapTokens: 20);
+
+        // Assert
+        chunks.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void ChunkText_ShouldHandleWhitespaceOnlyString()
+    {
+        // Arrange
+        var text = "     \t\n\n   ";
+
+        // Act
+        var chunks = TextChunker.ChunkText(text, maxTokens: 100, overlapTokens: 10);
+
+        // Assert
+        chunks.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ChunkText_ShouldHandleTextWithExclamationMarks()
+    {
+        // Arrange
+        var text = string.Join(" ", Enumerable.Repeat("Exciting news! This is great! More content here.", 100));
+
+        // Act
+        var chunks = TextChunker.ChunkText(text, maxTokens: 500, overlapTokens: 50);
+
+        // Assert
+        chunks.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void ChunkText_ShouldHandleTextWithQuestionMarks()
+    {
+        // Arrange
+        var text = string.Join(" ", Enumerable.Repeat("What is this? How does it work? More questions?", 100));
+
+        // Act
+        var chunks = TextChunker.ChunkText(text, maxTokens: 500, overlapTokens: 50);
+
+        // Assert
+        chunks.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void ChunkText_ShouldHandleVeryLongWordsWithoutSpaces()
+    {
+        // Arrange - No good word boundaries
+        var text = string.Join("", Enumerable.Repeat("a", 10000));
+
+        // Act
+        var chunks = TextChunker.ChunkText(text, maxTokens: 100, overlapTokens: 10);
+
+        // Assert
+        chunks.Should().NotBeEmpty();
+        chunks.Should().HaveCountGreaterThan(1);
+    }
 }
