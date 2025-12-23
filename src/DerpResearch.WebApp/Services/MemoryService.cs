@@ -2,6 +2,7 @@ using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Models;
 using DeepResearch.WebApp.Memory;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 
 namespace DeepResearch.WebApp.Services;
@@ -14,13 +15,20 @@ public class MemoryService : IMemoryService
     private readonly ILogger<MemoryService> _logger;
     private readonly int _topK;
 
+    // Magic number constants
+    private const int EmbeddingDimension = 3072;
+    private const int DefaultMaxTokensPerChunk = 3000;
+    private const int DefaultOverlapTokens = 100;
+    private const int DefaultRecentMemoriesLimit = 5;
+
     public MemoryService(
-        IConfiguration config,
+        IOptions<MemoryConfiguration> memoryConfig,
         ILLMService llmService,
         ILogger<MemoryService> logger,
         ILoggerFactory loggerFactory)
     {
-        var dbPath = config["Memory:DatabasePath"] ?? "Data/deepresearch.db";
+        var config = memoryConfig.Value;
+        var dbPath = config.DatabasePath;
         _logger = logger;
         _logger.LogInformation("Initializing MemoryService with database path: {DbPath}", dbPath);
         
@@ -28,9 +36,9 @@ public class MemoryService : IMemoryService
         _dbInitializer = new DatabaseInitializer(dbPath, dbLogger);
         
         var indexLogger = loggerFactory.CreateLogger<PersistentFaissIndex>();
-        _faissIndex = new PersistentFaissIndex(dimension: 3072, logger: indexLogger);
+        _faissIndex = new PersistentFaissIndex(dimension: EmbeddingDimension, logger: indexLogger);
         _llmService = llmService;
-        _topK = int.Parse(config["Memory:TopKResults"] ?? "5");
+        _topK = config.TopKResults;
         
         _logger.LogInformation("MemoryService constructor completed. TopK: {TopK}", _topK);
     }
@@ -59,7 +67,7 @@ public class MemoryService : IMemoryService
         }
     }
 
-    public async Task<string> StoreMemoryAsync(string text, string source, string[] tags, string? conversationId = null, CancellationToken cancellationToken = default)
+    public async Task<StoreMemoryResult> StoreMemoryAsync(string text, string source, string[] tags, string? conversationId = null, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         
@@ -70,12 +78,19 @@ public class MemoryService : IMemoryService
         if (chunks.Length == 0)
         {
             _logger.LogWarning("Empty text provided to StoreMemoryAsync from source: {Source}", source);
-            return string.Empty;
+            return StoreMemoryResult.Empty();
         }
 
         _logger.LogInformation("Splitting text into {ChunkCount} chunks for source: {Source}", chunks.Length, source);
 
         var primaryId = Guid.NewGuid().ToString();
+        var result = new StoreMemoryResult
+        {
+            PrimaryId = primaryId,
+            TotalChunks = chunks.Length,
+            SuccessfulChunks = 0,
+            FailedChunks = 0
+        };
 
         await using var connection = _dbInitializer.CreateConnection();
         await connection.OpenAsync(cancellationToken);
@@ -113,18 +128,38 @@ public class MemoryService : IMemoryService
                 command.Parameters.AddWithValue("$conversationId", conversationId ?? (object)DBNull.Value);
 
                 await command.ExecuteNonQueryAsync(cancellationToken);
+                result.SuccessfulChunks++;
                 _logger.LogDebug("Stored memory chunk {ChunkId} ({Index}/{Total}) with vector {VectorId}", 
                     chunkId, i + 1, chunks.Length, vectorId);
             }
             catch (Exception ex)
             {
+                result.FailedChunks++;
+                result.Errors.Add(new ChunkError
+                {
+                    ChunkIndex = i,
+                    ChunkId = chunkId,
+                    ErrorMessage = ex.Message,
+                    ExceptionType = ex.GetType().Name
+                });
                 _logger.LogError(ex, "Failed to store chunk {Index}/{Total} from source {Source}: {Message}", 
                     i + 1, chunks.Length, source, ex.Message);
-                // Continue with next chunk even if one fails
+                // Continue with next chunk even if one fails - but now we track the failure
             }
         }
 
-        return primaryId;
+        if (result.IsCompleteFailure)
+        {
+            _logger.LogError("Complete failure storing memory from source {Source}: {FailedCount}/{TotalCount} chunks failed", 
+                source, result.FailedChunks, result.TotalChunks);
+        }
+        else if (result.IsPartiallySuccessful)
+        {
+            _logger.LogWarning("Partial success storing memory from source {Source}: {SuccessCount}/{TotalCount} chunks succeeded, {FailedCount} failed", 
+                source, result.SuccessfulChunks, result.TotalChunks, result.FailedChunks);
+        }
+
+        return result;
     }
 
     public async Task<MemoryChunk[]> SearchMemoryAsync(string query, int topK = 5, string? conversationId = null, CancellationToken cancellationToken = default)

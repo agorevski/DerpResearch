@@ -1,5 +1,6 @@
 using DeepResearch.WebApp.Agents;
 using DeepResearch.WebApp.Interfaces;
+using DeepResearch.WebApp.Models;
 using DeepResearch.WebApp.Services;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
@@ -29,6 +30,15 @@ foreach (var source in builder.Configuration.Sources)
 {
     startupLogger.LogInformation("  - {Source}", source.GetType().Name);
 }
+
+// Register strongly-typed configuration classes
+builder.Services.Configure<AzureOpenAIConfiguration>(builder.Configuration.GetSection(AzureOpenAIConfiguration.Section));
+builder.Services.Configure<MemoryConfiguration>(builder.Configuration.GetSection(MemoryConfiguration.Section));
+builder.Services.Configure<SearchConfiguration>(builder.Configuration.GetSection(SearchConfiguration.Section));
+builder.Services.Configure<GoogleCustomSearchConfiguration>(builder.Configuration.GetSection(GoogleCustomSearchConfiguration.Section));
+builder.Services.Configure<ReflectionConfiguration>(builder.Configuration.GetSection(ReflectionConfiguration.Section));
+builder.Services.Configure<MockServicesConfiguration>(builder.Configuration.GetSection(MockServicesConfiguration.Section));
+builder.Services.Configure<ResilienceConfiguration>(builder.Configuration.GetSection(ResilienceConfiguration.Section));
 
 // Validate critical configuration
 startupLogger.LogInformation("Validating configuration...");
@@ -125,8 +135,22 @@ try
         startupLogger.LogInformation(">>> Registering REAL Services:");
         startupLogger.LogInformation("  ✓ AzureOpenAIProvider");
         builder.Services.AddSingleton<ILLMProvider, AzureOpenAIProvider>();
-        startupLogger.LogInformation("  ✓ LLMService (using ILLMProvider abstraction)");
-        builder.Services.AddSingleton<ILLMService, LLMService>();
+        
+        // Register LLM service with optional resilience wrapper
+        if (useResilientServices)
+        {
+            startupLogger.LogInformation("  ✓ LLMService (with circuit breaker & retry)");
+            builder.Services.AddSingleton<LLMService>();
+            builder.Services.AddSingleton<ILLMService>(sp =>
+                new ResilientLLMService(
+                    sp.GetRequiredService<LLMService>(),
+                    sp.GetRequiredService<ILogger<ResilientLLMService>>()));
+        }
+        else
+        {
+            startupLogger.LogInformation("  ✓ LLMService (without resilience)");
+            builder.Services.AddSingleton<ILLMService, LLMService>();
+        }
         
         // Register services with optional resilience wrappers
         if (useResilientServices)

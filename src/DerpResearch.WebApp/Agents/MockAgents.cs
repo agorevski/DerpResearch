@@ -207,13 +207,13 @@ public class MockSearchAgent : ISearchAgent
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 
-                var memoryId = await _memoryService.StoreMemoryAsync(
+                var storeResult = await _memoryService.StoreMemoryAsync(
                     result.Content!,
                     source: result.Url,
                     tags: new[] { "web-search", task.SearchQuery },
                     cancellationToken: cancellationToken
                 );
-                allStoredMemoryIds.Add(memoryId);
+                allStoredMemoryIds.Add(storeResult.PrimaryId);
                 allResults.Add(result);
                 
                 // Yield SearchResult (OrchestratorService will convert to SSE source update)

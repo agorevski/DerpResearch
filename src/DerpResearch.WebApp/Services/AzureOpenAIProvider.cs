@@ -2,6 +2,7 @@ using Azure;
 using Azure.AI.OpenAI;
 using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Models;
+using Microsoft.Extensions.Options;
 using OpenAI.Chat;
 using OpenAI.Embeddings;
 using System.Runtime.CompilerServices;
@@ -15,33 +16,30 @@ namespace DeepResearch.WebApp.Services;
 public class AzureOpenAIProvider : ILLMProvider
 {
     private readonly AzureOpenAIClient _client;
-    private readonly IConfiguration _config;
+    private readonly AzureOpenAIConfiguration _config;
     private readonly ILogger<AzureOpenAIProvider> _logger;
 
     public string ProviderName => "AzureOpenAI";
 
-    public AzureOpenAIProvider(IConfiguration config, ILogger<AzureOpenAIProvider> logger)
+    public AzureOpenAIProvider(IOptions<AzureOpenAIConfiguration> config, ILogger<AzureOpenAIProvider> logger)
     {
-        _config = config;
+        _config = config.Value;
         _logger = logger;
 
-        var endpointStr = _config["AzureOpenAI:Endpoint"];
-        var apiKey = _config["AzureOpenAI:ApiKey"];
-
-        if (string.IsNullOrEmpty(endpointStr))
+        if (string.IsNullOrEmpty(_config.Endpoint))
         {
             throw new InvalidOperationException("AzureOpenAI:Endpoint configuration is missing.");
         }
 
-        if (string.IsNullOrEmpty(apiKey))
+        if (string.IsNullOrEmpty(_config.ApiKey))
         {
             throw new InvalidOperationException("AzureOpenAI:ApiKey configuration is missing.");
         }
 
-        var endpoint = new Uri(endpointStr);
-        _client = new AzureOpenAIClient(endpoint, new AzureKeyCredential(apiKey));
+        var endpoint = new Uri(_config.Endpoint);
+        _client = new AzureOpenAIClient(endpoint, new AzureKeyCredential(_config.ApiKey));
 
-        _logger.LogInformation("AzureOpenAIProvider initialized with endpoint: {Endpoint}", endpointStr);
+        _logger.LogInformation("AzureOpenAIProvider initialized with endpoint: {Endpoint}", _config.Endpoint);
     }
 
     public async IAsyncEnumerable<string> StreamCompletionAsync(
@@ -90,7 +88,7 @@ public class AzureOpenAIProvider : ILLMProvider
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var deployment = _config["AzureOpenAI:Deployments:Embedding"] ?? "text-embedding-3-large";
+        var deployment = _config.Deployments.Embedding;
         var embeddingClient = _client.GetEmbeddingClient(deployment);
 
         var response = await embeddingClient.GenerateEmbeddingAsync(text, cancellationToken: cancellationToken);
@@ -99,7 +97,13 @@ public class AzureOpenAIProvider : ILLMProvider
 
     private string ResolveDeployment(string modelName)
     {
-        return _config[$"AzureOpenAI:Deployments:{modelName}"] ?? modelName;
+        // Map known model names to deployments
+        return modelName.ToLower() switch
+        {
+            "gpt-4o" => _config.Deployments.Chat,
+            "gpt-4o-mini" => _config.Deployments.ChatMini,
+            _ => modelName
+        };
     }
 
     private static List<OpenAI.Chat.ChatMessage> ConvertMessages(ChatMessage[] messages)

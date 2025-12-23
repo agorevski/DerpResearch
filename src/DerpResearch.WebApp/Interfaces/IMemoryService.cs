@@ -10,9 +10,10 @@ public interface IMemoryService
     Task InitializeAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Store new information with embedding
+    /// Store new information with embedding.
+    /// Returns detailed result with success/failure info for each chunk.
     /// </summary>
-    Task<string> StoreMemoryAsync(string text, string source, string[] tags, string? conversationId = null, CancellationToken cancellationToken = default);
+    Task<StoreMemoryResult> StoreMemoryAsync(string text, string source, string[] tags, string? conversationId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Hybrid search: FAISS similarity + SQLite metadata filtering

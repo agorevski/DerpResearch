@@ -1,5 +1,6 @@
 using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Models;
+using Microsoft.Extensions.Options;
 using System.Text;
 using System.Text.Json;
 using System.Runtime.CompilerServices;
@@ -16,7 +17,7 @@ public class OrchestratorService : IOrchestratorService
     private readonly IMemoryService _memoryService;
     private readonly ISearchService _searchService;
     private readonly ILLMService _llmService;
-    private readonly IConfiguration _config;
+    private readonly ReflectionConfiguration _reflectionConfig;
     private readonly ILogger<OrchestratorService> _logger;
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -32,7 +33,7 @@ public class OrchestratorService : IOrchestratorService
         IMemoryService memoryService,
         ISearchService searchService,
         ILLMService llmService,
-        IConfiguration config,
+        IOptions<ReflectionConfiguration> reflectionConfig,
         ILogger<OrchestratorService> logger)
     {
         _clarificationAgent = clarificationAgent;
@@ -43,7 +44,7 @@ public class OrchestratorService : IOrchestratorService
         _memoryService = memoryService;
         _searchService = searchService;
         _llmService = llmService;
-        _config = config;
+        _reflectionConfig = reflectionConfig.Value;
         _logger = logger;
     }
 
@@ -205,8 +206,8 @@ public class OrchestratorService : IOrchestratorService
         var relevantMemories = await _memoryService.SearchMemoryAsync(enhancedPrompt, 5, conversationId, cancellationToken);
 
         // Step 5-6: Synthesize and Reflect (with iteration loop)
-        var maxIterations = int.Parse(_config["Reflection:MaxIterations"] ?? "2");
-        var confidenceThreshold = double.Parse(_config["Reflection:ConfidenceThreshold"] ?? "0.7");
+        var maxIterations = _reflectionConfig.MaxIterations;
+        var confidenceThreshold = _reflectionConfig.ConfidenceThreshold;
         
         string synthesizedResponse = "";
         ReflectionResult? reflection = null;
@@ -388,13 +389,19 @@ public class OrchestratorService : IOrchestratorService
         await _memoryService.SaveMessageAsync(conversationId, "assistant", synthesizedResponse, cancellationToken);
 
         // Store the final synthesized response as a memory for future reference
-        await _memoryService.StoreMemoryAsync(
+        var storeResult = await _memoryService.StoreMemoryAsync(
             synthesizedResponse,
             "deep-research-synthesis",
             new[] { "synthesis", "deep-research", enhancedPrompt },
             conversationId,
             cancellationToken
         );
+        
+        if (!storeResult.IsFullySuccessful)
+        {
+            _logger.LogWarning("Synthesis memory storage had issues: {Success}/{Total} chunks succeeded", 
+                storeResult.SuccessfulChunks, storeResult.TotalChunks);
+        }
 
         _logger.LogInformation("Deep research completed for conversation {ConversationId}", conversationId);
     }

@@ -191,4 +191,42 @@ public static class TestDataBuilder
     {
         return new ClarificationUpdate(questions, rationale);
     }
+
+    public static StoreMemoryResult CreateStoreMemoryResult(
+        string primaryId = "test-memory-id",
+        int totalChunks = 1,
+        int successfulChunks = 1,
+        int failedChunks = 0,
+        List<ChunkError>? errors = null)
+    {
+        return new StoreMemoryResult
+        {
+            PrimaryId = primaryId,
+            TotalChunks = totalChunks,
+            SuccessfulChunks = successfulChunks,
+            FailedChunks = failedChunks,
+            Errors = errors ?? new List<ChunkError>()
+        };
+    }
+
+    public static StoreMemoryResult CreateFailedStoreMemoryResult(
+        string primaryId = "test-memory-id",
+        int totalChunks = 1,
+        string errorMessage = "Storage failed")
+    {
+        return new StoreMemoryResult
+        {
+            PrimaryId = primaryId,
+            TotalChunks = totalChunks,
+            SuccessfulChunks = 0,
+            FailedChunks = totalChunks,
+            Errors = Enumerable.Range(0, totalChunks).Select(i => new ChunkError
+            {
+                ChunkIndex = i,
+                ChunkId = $"{primaryId}-chunk{i}",
+                ErrorMessage = errorMessage,
+                ExceptionType = "Exception"
+            }).ToList()
+        };
+    }
 }

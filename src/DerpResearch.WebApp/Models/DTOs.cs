@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DeepResearch.WebApp.Models;
 
 public record ChatRequest(
@@ -13,10 +15,46 @@ public record ChatResponse(
     string Message
 );
 
+/// <summary>
+/// Type of stream token being sent to the client.
+/// Replaces magic string for Type field.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum StreamTokenType
+{
+    Content,
+    Progress,
+    Plan,
+    SearchQuery,
+    Source,
+    Clarification,
+    Reflection,
+    SourcesComplete,
+    Fallback,
+    Error
+}
+
+/// <summary>
+/// Helper class for StreamTokenType string conversions (for backward compatibility).
+/// </summary>
+public static class StreamTokenTypes
+{
+    public const string Content = "content";
+    public const string Progress = "progress";
+    public const string Plan = "plan";
+    public const string SearchQuery = "search_query";
+    public const string Source = "source";
+    public const string Clarification = "clarification";
+    public const string Reflection = "reflection";
+    public const string SourcesComplete = "sources_complete";
+    public const string Fallback = "fallback";
+    public const string Error = "error";
+}
+
 public record StreamToken(
     string Token,
     string? ConversationId = null,
-    string? Type = "content",
+    string? Type = StreamTokenTypes.Content,
     object? Data = null
 );
 

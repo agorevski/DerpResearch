@@ -76,6 +76,14 @@ public static class TestMockFactory
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         
+        mock.Setup(m => m.StoreMemoryAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string[]>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(TestDataBuilder.CreateStoreMemoryResult());
+        
         return mock;
     }
 

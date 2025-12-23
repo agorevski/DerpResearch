@@ -1,6 +1,7 @@
 using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Models;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -10,7 +11,6 @@ namespace DeepResearch.WebApp.Services;
 public class SearchService : ISearchService
 {
     private readonly HttpClient _httpClient;
-    private readonly IConfiguration _config;
     private readonly ILogger<SearchService> _logger;
     private readonly string _dbPath;
     private readonly int _cacheDuration;
@@ -20,17 +20,24 @@ public class SearchService : ISearchService
 
     public SearchService(
         IHttpClientFactory httpClientFactory,
-        IConfiguration config,
+        IOptions<MemoryConfiguration> memoryConfig,
+        IOptions<SearchConfiguration> searchConfig,
+        IOptions<GoogleCustomSearchConfiguration> googleConfig,
         ILogger<SearchService> logger)
     {
         _httpClient = httpClientFactory.CreateClient();
-        _config = config;
         _logger = logger;
-        _dbPath = config["Memory:DatabasePath"] ?? "Data/deepresearch.db";
-        _cacheDuration = int.Parse(config["Search:CacheDuration"] ?? "86400");
-        _maxResults = int.Parse(config["Search:MaxResults"] ?? "10");
-        _googleApiKey = config["GoogleCustomSearch:ApiKey"] ?? throw new InvalidOperationException("Google Custom Search API key not configured");
-        _googleSearchEngineId = config["GoogleCustomSearch:SearchEngineId"] ?? throw new InvalidOperationException("Google Custom Search Engine ID not configured");
+        _dbPath = memoryConfig.Value.DatabasePath;
+        _cacheDuration = searchConfig.Value.CacheDuration;
+        _maxResults = searchConfig.Value.MaxResults;
+        
+        if (string.IsNullOrEmpty(googleConfig.Value.ApiKey))
+            throw new InvalidOperationException("Google Custom Search API key not configured");
+        if (string.IsNullOrEmpty(googleConfig.Value.SearchEngineId))
+            throw new InvalidOperationException("Google Custom Search Engine ID not configured");
+            
+        _googleApiKey = googleConfig.Value.ApiKey;
+        _googleSearchEngineId = googleConfig.Value.SearchEngineId;
     }
 
     public async Task<SearchResult[]> SearchAsync(string query, int maxResults = 10, CancellationToken cancellationToken = default)

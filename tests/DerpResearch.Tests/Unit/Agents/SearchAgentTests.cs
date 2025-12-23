@@ -61,7 +61,7 @@ public class SearchAgentTests
                 It.IsAny<string[]>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync("memory-id");
+            .ReturnsAsync(TestDataBuilder.CreateStoreMemoryResult());
 
         // Act
         var results = new List<object>();
@@ -135,7 +135,7 @@ public class SearchAgentTests
                 It.IsAny<string[]>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync("memory-id");
+            .ReturnsAsync(TestDataBuilder.CreateStoreMemoryResult());
 
         // Act
         var results = new List<object>();
@@ -183,7 +183,7 @@ public class SearchAgentTests
                 It.IsAny<string[]>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync("memory-id");
+            .ReturnsAsync(TestDataBuilder.CreateStoreMemoryResult());
 
         // Act
         var results = new List<object>();
@@ -264,7 +264,7 @@ public class SearchAgentTests
                 It.IsAny<string[]>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync("memory-id");
+            .ReturnsAsync(TestDataBuilder.CreateStoreMemoryResult());
 
         // Act
         await foreach (var _ in _agent.ExecuteSearchPlanAsync(plan)) { }
@@ -313,8 +313,11 @@ public class SearchAgentTests
             {
                 callCount++;
                 if (callCount == 1)
-                    throw new Exception("Memory store failed");
-                return Task.FromResult("memory-id");
+                {
+                    // First call returns a complete failure result
+                    return Task.FromResult(TestDataBuilder.CreateFailedStoreMemoryResult());
+                }
+                return Task.FromResult(TestDataBuilder.CreateStoreMemoryResult());
             });
 
         // Act

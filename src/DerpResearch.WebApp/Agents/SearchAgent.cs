@@ -107,10 +107,23 @@ public class SearchAgent : ISearchAgent
                 var memoryText = $"{result.Title}\n{result.Content}\nSource: {result.Url}";
                 var tags = new[] { "search-result", task.SearchQuery };
 
-                string memoryId;
+                StoreMemoryResult storeResult;
                 try
                 {
-                    memoryId = await _memoryService.StoreMemoryAsync(memoryText, result.Url, tags, cancellationToken: cancellationToken);
+                    storeResult = await _memoryService.StoreMemoryAsync(memoryText, result.Url, tags, cancellationToken: cancellationToken);
+                    
+                    if (storeResult.IsCompleteFailure)
+                    {
+                        _logger.LogWarning("Failed to store any chunks for: {Url}. Errors: {Errors}", 
+                            result.Url, string.Join("; ", storeResult.Errors.Select(e => e.ErrorMessage)));
+                        continue;
+                    }
+                    
+                    if (storeResult.IsPartiallySuccessful)
+                    {
+                        _logger.LogWarning("Partially stored memory for: {Url}. {Success}/{Total} chunks succeeded", 
+                            result.Url, storeResult.SuccessfulChunks, storeResult.TotalChunks);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -118,7 +131,7 @@ public class SearchAgent : ISearchAgent
                     continue;
                 }
 
-                storedMemoryIds.Add(memoryId);
+                storedMemoryIds.Add(storeResult.PrimaryId);
                 
                 // Yield the source immediately after fetching and storing
                 yield return result;
