@@ -47,16 +47,21 @@ public class ResilientSearchService : ISearchService
         await _rateLimiter.WaitAsync();
         try
         {
-            // Enforce rate limiting
+            // Enforce rate limiting - check inside lock, delay outside
+            TimeSpan delayNeeded = TimeSpan.Zero;
             lock (_lock)
             {
                 var timeSinceLastRequest = DateTime.UtcNow - _lastRequest;
                 if (timeSinceLastRequest < _minimumInterval)
                 {
-                    var delay = _minimumInterval - timeSinceLastRequest;
-                    Thread.Sleep(delay); // Synchronous wait under lock
+                    delayNeeded = _minimumInterval - timeSinceLastRequest;
                 }
-                _lastRequest = DateTime.UtcNow;
+                _lastRequest = DateTime.UtcNow + delayNeeded;
+            }
+
+            if (delayNeeded > TimeSpan.Zero)
+            {
+                await Task.Delay(delayNeeded, cancellationToken);
             }
 
             // Retry logic with exponential backoff

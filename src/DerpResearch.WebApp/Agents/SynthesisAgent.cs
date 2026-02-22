@@ -1,5 +1,7 @@
 using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Models;
+using DeepResearch.WebApp.Services;
+using Microsoft.Extensions.Options;
 using System.Text;
 using System.Runtime.CompilerServices;
 
@@ -9,11 +11,13 @@ public class SynthesisAgent : ISynthesisAgent
 {
     private readonly ILLMService _llmService;
     private readonly ILogger<SynthesisAgent> _logger;
+    private readonly AzureOpenAIConfiguration _aiConfig;
 
-    public SynthesisAgent(ILLMService llmService, ILogger<SynthesisAgent> logger)
+    public SynthesisAgent(ILLMService llmService, ILogger<SynthesisAgent> logger, IOptions<AzureOpenAIConfiguration> aiConfig)
     {
         _llmService = llmService;
         _logger = logger;
+        _aiConfig = aiConfig.Value;
     }
 
     public async IAsyncEnumerable<string> SynthesizeAsync(
@@ -25,6 +29,7 @@ public class SynthesisAgent : ISynthesisAgent
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        userQuery = PromptSanitizer.Sanitize(userQuery);
         
         var prompt = BuildSynthesisPrompt(userQuery, plan, info, relevantMemories, derpificationLevel);
 
@@ -44,7 +49,7 @@ public class SynthesisAgent : ISynthesisAgent
 
         _logger.LogInformation("Starting synthesis for query: {Query}", userQuery);
 
-        await foreach (var token in _llmService.ChatCompletionStream(messages, "gpt-4o", cancellationToken).WithCancellation(cancellationToken))
+        await foreach (var token in _llmService.ChatCompletionStream(messages, _aiConfig.Deployments.Chat, cancellationToken).WithCancellation(cancellationToken))
         {
             yield return token;
         }
@@ -106,7 +111,7 @@ public class SynthesisAgent : ISynthesisAgent
 
     private string GetSynthesisStyleGuidance(int derpificationLevel)
     {
-        if (derpificationLevel <= 33)
+        if (derpificationLevel <= DerpificationConstants.DerpMaxLevel)
         {
             // Derp mode: SUPER SIMPLE - like an elementary school report
             return @"Response Style: SUPER SIMPLE (Derp Mode - Elementary School Report)
@@ -120,7 +125,7 @@ public class SynthesisAgent : ISynthesisAgent
 - Pretend you're a student doing a homework report
 - NO complex ideas - just the basics that are easy to understand";
         }
-        else if (derpificationLevel <= 66)
+        else if (derpificationLevel <= DerpificationConstants.AverageMaxLevel)
         {
             // Average mode: Balanced, professional
             return @"Response Style: BALANCED & PROFESSIONAL (Average Mode)

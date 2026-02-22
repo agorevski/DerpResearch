@@ -1,5 +1,7 @@
 using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Models;
+using DeepResearch.WebApp.Services;
+using Microsoft.Extensions.Options;
 
 namespace DeepResearch.WebApp.Agents;
 
@@ -7,11 +9,13 @@ public class ClarificationAgent : IClarificationAgent
 {
     private readonly ILLMService _llmService;
     private readonly ILogger<ClarificationAgent> _logger;
+    private readonly AzureOpenAIConfiguration _aiConfig;
 
-    public ClarificationAgent(ILLMService llmService, ILogger<ClarificationAgent> logger)
+    public ClarificationAgent(ILLMService llmService, ILogger<ClarificationAgent> logger, IOptions<AzureOpenAIConfiguration> aiConfig)
     {
         _llmService = llmService;
         _logger = logger;
+        _aiConfig = aiConfig.Value;
     }
 
     public async Task<ClarificationResult> GenerateClarifyingQuestionsAsync(
@@ -21,6 +25,7 @@ public class ClarificationAgent : IClarificationAgent
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        userQuery = PromptSanitizer.Sanitize(userQuery);
         
         var contextSummary = BuildContextSummary(context);
         var questionGuidance = GetQuestionGuidance(derpificationLevel);
@@ -49,7 +54,7 @@ The questions should be open-ended and help narrow down the research scope.";
 
         try
         {
-            var result = await _llmService.GetStructuredOutput<ClarificationResult>(prompt, "gpt-4o", cancellationToken);
+            var result = await _llmService.GetStructuredOutput<ClarificationResult>(prompt, _aiConfig.Deployments.Chat, cancellationToken);
 
             if (result != null && result.Questions.Length > 0)
             {
@@ -70,7 +75,7 @@ The questions should be open-ended and help narrow down the research scope.";
 
     private string GetQuestionGuidance(int derpificationLevel)
     {
-        if (derpificationLevel <= 33)
+        if (derpificationLevel <= DerpificationConstants.DerpMaxLevel)
         {
             // Derp mode: Super simple questions
             return @"Question Style: SUPER SIMPLE (Derp Mode - Elementary Level)
@@ -80,7 +85,7 @@ The questions should be open-ended and help narrow down the research scope.";
 - Keep questions SHORT and FRIENDLY
 - No fancy words or complicated ideas";
         }
-        else if (derpificationLevel <= 66)
+        else if (derpificationLevel <= DerpificationConstants.AverageMaxLevel)
         {
             // Average mode: Focused questions
             return @"Question Style: FOCUSED (Average Mode)
@@ -128,7 +133,7 @@ The questions should be open-ended and help narrow down the research scope.";
         string[] questions;
         string rationale;
 
-        if (derpificationLevel <= 33)
+        if (derpificationLevel <= DerpificationConstants.DerpMaxLevel)
         {
             // Derp mode fallback
             questions = new[]
@@ -138,7 +143,7 @@ The questions should be open-ended and help narrow down the research scope.";
             };
             rationale = "These simple questions help us understand what you're looking for.";
         }
-        else if (derpificationLevel <= 66)
+        else if (derpificationLevel <= DerpificationConstants.AverageMaxLevel)
         {
             // Average mode fallback
             questions = new[]

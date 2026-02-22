@@ -147,6 +147,34 @@ public class MockServicesConfiguration
 }
 
 /// <summary>
+/// Configuration for API key authentication.
+/// When ApiKey is empty or null, authentication is disabled (development mode).
+/// </summary>
+public class ApiKeyAuthenticationConfiguration
+{
+    public const string Section = "ApiKeyAuthentication";
+    
+    /// <summary>
+    /// The API key required for accessing protected endpoints.
+    /// Leave empty to disable authentication (development mode).
+    /// </summary>
+    public string ApiKey { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Configuration for CORS policy.
+/// </summary>
+public class CorsConfiguration
+{
+    public const string Section = "Cors";
+    
+    /// <summary>
+    /// Allowed origins for CORS. Only used in non-development environments.
+    /// </summary>
+    public string[] AllowedOrigins { get; set; } = Array.Empty<string>();
+}
+
+/// <summary>
 /// Configuration for resilience patterns (circuit breaker, retry, rate limiting).
 /// </summary>
 public class ResilienceConfiguration

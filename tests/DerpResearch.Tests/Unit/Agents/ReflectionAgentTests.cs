@@ -4,6 +4,7 @@ using DeepResearch.WebApp.Models;
 using DerpResearch.Tests.Helpers;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace DerpResearch.Tests.Unit.Agents;
@@ -18,7 +19,8 @@ public class ReflectionAgentTests
     {
         _mockLLMService = TestMockFactory.CreateLLMService();
         _mockLogger = TestMockFactory.CreateLogger<ReflectionAgent>();
-        _agent = new ReflectionAgent(_mockLLMService.Object, _mockLogger.Object);
+        var aiConfig = Options.Create(new AzureOpenAIConfiguration());
+        _agent = new ReflectionAgent(_mockLLMService.Object, _mockLogger.Object, aiConfig);
     }
 
     [Fact]

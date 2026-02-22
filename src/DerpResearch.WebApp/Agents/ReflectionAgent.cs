@@ -1,5 +1,7 @@
 using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Models;
+using DeepResearch.WebApp.Services;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 
 namespace DeepResearch.WebApp.Agents;
@@ -8,11 +10,13 @@ public class ReflectionAgent : IReflectionAgent
 {
     private readonly ILLMService _llmService;
     private readonly ILogger<ReflectionAgent> _logger;
+    private readonly AzureOpenAIConfiguration _aiConfig;
 
-    public ReflectionAgent(ILLMService llmService, ILogger<ReflectionAgent> logger)
+    public ReflectionAgent(ILLMService llmService, ILogger<ReflectionAgent> logger, IOptions<AzureOpenAIConfiguration> aiConfig)
     {
         _llmService = llmService;
         _logger = logger;
+        _aiConfig = aiConfig.Value;
     }
 
     public async Task<ReflectionResult> ReflectAsync(
@@ -23,6 +27,7 @@ public class ReflectionAgent : IReflectionAgent
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        userQuery = PromptSanitizer.Sanitize(userQuery);
         
         var evaluationGuidance = GetEvaluationGuidance(derpificationLevel);
         
@@ -61,7 +66,7 @@ Provide your evaluation:";
 
         try
         {
-            var result = await _llmService.GetStructuredOutput<ReflectionResult>(prompt, "gpt-4o-mini", cancellationToken);
+            var result = await _llmService.GetStructuredOutput<ReflectionResult>(prompt, _aiConfig.Deployments.ChatMini, cancellationToken);
 
             if (result != null)
             {
@@ -94,7 +99,7 @@ Provide your evaluation:";
 
     private string GetEvaluationGuidance(int derpificationLevel)
     {
-        if (derpificationLevel <= 33)
+        if (derpificationLevel <= DerpificationConstants.DerpMaxLevel)
         {
             // Derp mode: Simple evaluation criteria
             return @"Evaluation Style: SIMPLE (Derp Mode - Elementary Level)
@@ -105,7 +110,7 @@ Provide your evaluation:";
 - Be LESS strict - simple answers are okay
 - Only suggest more research if the main idea is missing";
         }
-        else if (derpificationLevel <= 66)
+        else if (derpificationLevel <= DerpificationConstants.AverageMaxLevel)
         {
             // Average mode: Balanced evaluation
             return @"Evaluation Style: BALANCED (Average Mode)

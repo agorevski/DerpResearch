@@ -71,10 +71,13 @@ public class SearchService : ISearchService
         {
             cancellationToken.ThrowIfCancellationRequested();
             
-            // Google Custom Search API endpoint
-            var url = $"https://www.googleapis.com/customsearch/v1?key={_googleApiKey}&cx={_googleSearchEngineId}&q={Uri.EscapeDataString(query)}&num={Math.Min(maxResults, 10)}";
+            // Build URL without API key for safe logging
+            var baseUrl = $"https://www.googleapis.com/customsearch/v1?cx={_googleSearchEngineId}&q={Uri.EscapeDataString(query)}&num={Math.Min(maxResults, 10)}";
 
-            var response = await _httpClient.GetStringAsync(url, cancellationToken);
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}&key={_googleApiKey}");
+            using var httpResponse = await _httpClient.SendAsync(request, cancellationToken);
+            httpResponse.EnsureSuccessStatusCode();
+            var response = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
             var searchResponse = JsonSerializer.Deserialize<GoogleSearchResponse>(response, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true

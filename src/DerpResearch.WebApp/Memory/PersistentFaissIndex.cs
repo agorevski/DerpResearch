@@ -90,27 +90,45 @@ public class PersistentFaissIndex
             throw new ArgumentException($"Expected dimension {_dimension}, got {embedding.Length}");
         }
 
+        // Claim an ID under lock to prevent race conditions between concurrent callers
         int id;
         lock (_lock)
         {
             id = _nextId++;
-            _vectors[id] = embedding;
         }
 
-        // Persist to database
+        // Persist to database first (inside transaction) before updating in-memory state
         var embeddingBytes = FloatArrayToBytes(embedding);
         
-        var command = connection.CreateCommand();
-        command.CommandText = @"
-            INSERT INTO VectorStore (VectorId, Embedding, Dimension, CreatedAt)
-            VALUES ($vectorId, $embedding, $dimension, $createdAt)
-        ";
-        command.Parameters.AddWithValue("$vectorId", id);
-        command.Parameters.AddWithValue("$embedding", embeddingBytes);
-        command.Parameters.AddWithValue("$dimension", _dimension);
-        command.Parameters.AddWithValue("$createdAt", DateTime.UtcNow.ToString("O"));
+        await using var transaction = await connection.BeginTransactionAsync();
+        try
+        {
+            var command = connection.CreateCommand();
+            command.Transaction = (Microsoft.Data.Sqlite.SqliteTransaction)transaction;
+            command.CommandText = @"
+                INSERT INTO VectorStore (VectorId, Embedding, Dimension, CreatedAt)
+                VALUES ($vectorId, $embedding, $dimension, $createdAt)
+            ";
+            command.Parameters.AddWithValue("$vectorId", id);
+            command.Parameters.AddWithValue("$embedding", embeddingBytes);
+            command.Parameters.AddWithValue("$dimension", _dimension);
+            command.Parameters.AddWithValue("$createdAt", DateTime.UtcNow.ToString("O"));
 
-        await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync();
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            // Reclaim the ID is not possible safely, but the gap is acceptable
+            throw;
+        }
+
+        // Only update in-memory state after successful DB write
+        lock (_lock)
+        {
+            _vectors[id] = embedding;
+        }
 
         _logger?.LogDebug("Added and persisted vector {VectorId} with dimension {Dimension}", id, _dimension);
         return id;

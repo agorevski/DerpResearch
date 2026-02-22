@@ -1,12 +1,13 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace DeepResearch.WebApp.Models;
 
 public record ChatRequest(
-    string Prompt,
+    [property: Required, MaxLength(10000)] string Prompt,
     string Mode = "deep-research",
     string? ConversationId = null,
-    int DerpificationLevel = 100,
+    [property: Range(0, 100)] int DerpificationLevel = 100,
     string[]? ClarificationAnswers = null
 );
 

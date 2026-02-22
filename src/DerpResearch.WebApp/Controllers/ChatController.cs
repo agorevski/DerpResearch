@@ -1,12 +1,14 @@
 using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Text.Json;
 
 namespace DeepResearch.WebApp.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[EnableRateLimiting("fixed")]
 public class ChatController : ControllerBase
 {
     private readonly IOrchestratorService _orchestrator;
@@ -30,6 +32,15 @@ public class ChatController : ControllerBase
     [HttpPost]
     public async Task Chat([FromBody] ChatRequest request)
     {
+        if (!ModelState.IsValid)
+        {
+            Response.StatusCode = 400;
+            Response.ContentType = "application/json";
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+            await Response.WriteAsJsonAsync(new { errors });
+            return;
+        }
+
         Response.ContentType = "text/event-stream";
         Response.Headers.Append("Cache-Control", "no-cache");
         Response.Headers.Append("Connection", "keep-alive");

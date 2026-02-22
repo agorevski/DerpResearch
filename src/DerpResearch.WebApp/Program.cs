@@ -1,3 +1,5 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using DeepResearch.WebApp.Agents;
 using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Middleware;
@@ -40,6 +42,7 @@ builder.Services.Configure<GoogleCustomSearchConfiguration>(builder.Configuratio
 builder.Services.Configure<ReflectionConfiguration>(builder.Configuration.GetSection(ReflectionConfiguration.Section));
 builder.Services.Configure<MockServicesConfiguration>(builder.Configuration.GetSection(MockServicesConfiguration.Section));
 builder.Services.Configure<ResilienceConfiguration>(builder.Configuration.GetSection(ResilienceConfiguration.Section));
+builder.Services.Configure<ApiKeyAuthenticationConfiguration>(builder.Configuration.GetSection(ApiKeyAuthenticationConfiguration.Section));
 
 // Validate critical configuration
 startupLogger.LogInformation("Validating configuration...");
@@ -82,9 +85,41 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        if (builder.Environment.IsDevelopment())
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        }
+        else
+        {
+            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() 
+                ?? Array.Empty<string>();
+            if (allowedOrigins.Length > 0)
+            {
+                policy.WithOrigins(allowedOrigins)
+                      .AllowAnyMethod()
+                      .AllowAnyHeader();
+            }
+            else
+            {
+                // No origins configured in production — block all cross-origin requests
+                startupLogger.LogWarning("No CORS origins configured for production. All cross-origin requests will be blocked. Configure Cors:AllowedOrigins in appsettings.");
+            }
+        }
+    });
+});
+
+// Add rate limiting
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("fixed", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 10;
+        limiterOptions.Window = TimeSpan.FromSeconds(10);
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 5;
     });
 });
 
@@ -258,10 +293,13 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+app.UseRateLimiter();
 
 // Add correlation ID middleware for distributed tracing
 // Must be early in the pipeline to ensure all requests get correlation IDs
 app.UseCorrelationId();
+
+app.UseMiddleware<ApiKeyAuthMiddleware>();
 
 app.UseAuthorization();
 

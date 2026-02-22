@@ -1,5 +1,7 @@
 using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Models;
+using DeepResearch.WebApp.Services;
+using Microsoft.Extensions.Options;
 
 namespace DeepResearch.WebApp.Agents;
 
@@ -7,16 +9,19 @@ public class PlannerAgent : IPlannerAgent
 {
     private readonly ILLMService _llmService;
     private readonly ILogger<PlannerAgent> _logger;
+    private readonly AzureOpenAIConfiguration _aiConfig;
 
-    public PlannerAgent(ILLMService llmService, ILogger<PlannerAgent> logger)
+    public PlannerAgent(ILLMService llmService, ILogger<PlannerAgent> logger, IOptions<AzureOpenAIConfiguration> aiConfig)
     {
         _llmService = llmService;
         _logger = logger;
+        _aiConfig = aiConfig.Value;
     }
 
     public async Task<ResearchPlan> CreatePlanAsync(string userQuery, ConversationContext context, int derpificationLevel = 100, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        userQuery = PromptSanitizer.Sanitize(userQuery);
         
         var contextSummary = BuildContextSummary(context);
         var complexityGuidance = GetComplexityGuidance(derpificationLevel);
@@ -53,7 +58,7 @@ Return ONLY a valid JSON object matching this structure:
   ""keyConcepts"": [""string"", ""string""]
 }}";
 
-        var plan = await _llmService.GetStructuredOutput<ResearchPlan>(prompt, "gpt-4o", cancellationToken);
+        var plan = await _llmService.GetStructuredOutput<ResearchPlan>(prompt, _aiConfig.Deployments.Chat, cancellationToken);
 
         if (plan == null)
         {
@@ -85,7 +90,7 @@ Return ONLY a valid JSON object matching this structure:
 
     private string GetComplexityGuidance(int derpificationLevel)
     {
-        if (derpificationLevel <= 33)
+        if (derpificationLevel <= DerpificationConstants.DerpMaxLevel)
         {
             // Derp mode: SUPER SIMPLE - like a child doing research
             return @"Planning Style: SUPER SIMPLE (Derp Mode - Elementary School Level)
@@ -95,7 +100,7 @@ Return ONLY a valid JSON object matching this structure:
 - Make search queries as simple as possible (3-5 words max)
 - Think like you're helping a young student with homework";
         }
-        else if (derpificationLevel <= 66)
+        else if (derpificationLevel <= DerpificationConstants.AverageMaxLevel)
         {
             // Average mode: Balanced planning
             return @"Planning Style: BALANCED (Average Mode)

@@ -62,83 +62,94 @@ public class DatabaseInitializer
             await connection.OpenAsync();
             _logger?.LogInformation("SQLite connection opened successfully");
 
-        var createTablesCommand = connection.CreateCommand();
-        createTablesCommand.CommandText = @"
-            -- Conversations table
-            CREATE TABLE IF NOT EXISTS Conversations (
-                Id TEXT PRIMARY KEY,
-                CreatedAt TEXT NOT NULL,
-                UpdatedAt TEXT NOT NULL
-            );
+        await using var transaction = await connection.BeginTransactionAsync();
+        try
+        {
+            var createTablesCommand = connection.CreateCommand();
+            createTablesCommand.Transaction = (SqliteTransaction)transaction;
+            createTablesCommand.CommandText = @"
+                -- Conversations table
+                CREATE TABLE IF NOT EXISTS Conversations (
+                    Id TEXT PRIMARY KEY,
+                    CreatedAt TEXT NOT NULL,
+                    UpdatedAt TEXT NOT NULL
+                );
 
-            -- Messages table
-            CREATE TABLE IF NOT EXISTS Messages (
-                Id TEXT PRIMARY KEY,
-                ConversationId TEXT NOT NULL,
-                Role TEXT NOT NULL,
-                Content TEXT NOT NULL,
-                Timestamp TEXT NOT NULL,
-                FOREIGN KEY(ConversationId) REFERENCES Conversations(Id)
-            );
+                -- Messages table
+                CREATE TABLE IF NOT EXISTS Messages (
+                    Id TEXT PRIMARY KEY,
+                    ConversationId TEXT NOT NULL,
+                    Role TEXT NOT NULL,
+                    Content TEXT NOT NULL,
+                    Timestamp TEXT NOT NULL,
+                    FOREIGN KEY(ConversationId) REFERENCES Conversations(Id)
+                );
 
-            -- Memories table
-            CREATE TABLE IF NOT EXISTS Memories (
-                Id TEXT PRIMARY KEY,
-                Text TEXT NOT NULL,
-                Source TEXT,
-                Tags TEXT,
-                VectorId INTEGER,
-                Timestamp TEXT NOT NULL,
-                ConversationId TEXT
-            );
+                -- Memories table
+                CREATE TABLE IF NOT EXISTS Memories (
+                    Id TEXT PRIMARY KEY,
+                    Text TEXT NOT NULL,
+                    Source TEXT,
+                    Tags TEXT,
+                    VectorId INTEGER,
+                    Timestamp TEXT NOT NULL,
+                    ConversationId TEXT
+                );
 
-            -- Search cache table
-            CREATE TABLE IF NOT EXISTS SearchCache (
-                QueryHash TEXT PRIMARY KEY,
-                Results TEXT NOT NULL,
-                Timestamp TEXT NOT NULL
-            );
+                -- Search cache table
+                CREATE TABLE IF NOT EXISTS SearchCache (
+                    QueryHash TEXT PRIMARY KEY,
+                    Results TEXT NOT NULL,
+                    Timestamp TEXT NOT NULL
+                );
 
-            -- Clarification questions table
-            CREATE TABLE IF NOT EXISTS ClarificationQuestions (
-                Id TEXT PRIMARY KEY,
-                ConversationId TEXT NOT NULL,
-                Questions TEXT NOT NULL,
-                CreatedAt TEXT NOT NULL,
-                FOREIGN KEY(ConversationId) REFERENCES Conversations(Id)
-            );
+                -- Clarification questions table
+                CREATE TABLE IF NOT EXISTS ClarificationQuestions (
+                    Id TEXT PRIMARY KEY,
+                    ConversationId TEXT NOT NULL,
+                    Questions TEXT NOT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    FOREIGN KEY(ConversationId) REFERENCES Conversations(Id)
+                );
 
-            -- Vector store table for persistent embeddings
-            CREATE TABLE IF NOT EXISTS VectorStore (
-                VectorId INTEGER PRIMARY KEY,
-                Embedding BLOB NOT NULL,
-                Dimension INTEGER NOT NULL,
-                CreatedAt TEXT NOT NULL
-            );
+                -- Vector store table for persistent embeddings
+                CREATE TABLE IF NOT EXISTS VectorStore (
+                    VectorId INTEGER PRIMARY KEY,
+                    Embedding BLOB NOT NULL,
+                    Dimension INTEGER NOT NULL,
+                    CreatedAt TEXT NOT NULL
+                );
 
-            -- Create indexes for performance
-            CREATE INDEX IF NOT EXISTS idx_messages_conversation 
-                ON Messages(ConversationId, Timestamp);
-            
-            CREATE INDEX IF NOT EXISTS idx_memories_conversation 
-                ON Memories(ConversationId, Timestamp);
-            
-            CREATE INDEX IF NOT EXISTS idx_memories_timestamp 
-                ON Memories(Timestamp);
-            
-            CREATE INDEX IF NOT EXISTS idx_search_cache_timestamp 
-                ON SearchCache(Timestamp);
-            
-            CREATE INDEX IF NOT EXISTS idx_clarification_conversation 
-                ON ClarificationQuestions(ConversationId);
-            
-            CREATE INDEX IF NOT EXISTS idx_vector_store_created 
-                ON VectorStore(CreatedAt);
-        ";
+                -- Create indexes for performance
+                CREATE INDEX IF NOT EXISTS idx_messages_conversation 
+                    ON Messages(ConversationId, Timestamp);
+                
+                CREATE INDEX IF NOT EXISTS idx_memories_conversation 
+                    ON Memories(ConversationId, Timestamp);
+                
+                CREATE INDEX IF NOT EXISTS idx_memories_timestamp 
+                    ON Memories(Timestamp);
+                
+                CREATE INDEX IF NOT EXISTS idx_search_cache_timestamp 
+                    ON SearchCache(Timestamp);
+                
+                CREATE INDEX IF NOT EXISTS idx_clarification_conversation 
+                    ON ClarificationQuestions(ConversationId);
+                
+                CREATE INDEX IF NOT EXISTS idx_vector_store_created 
+                    ON VectorStore(CreatedAt);
+            ";
 
-        _logger?.LogInformation("Executing table creation commands...");
-        await createTablesCommand.ExecuteNonQueryAsync();
-        _logger?.LogInformation("Database tables created/verified successfully");
+            _logger?.LogInformation("Executing table creation commands...");
+            await createTablesCommand.ExecuteNonQueryAsync();
+            await transaction.CommitAsync();
+            _logger?.LogInformation("Database tables created/verified successfully");
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
         }
         catch (Exception ex)
         {
