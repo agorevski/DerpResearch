@@ -17,6 +17,7 @@ public class SearchService : ISearchService
     private readonly int _maxResults;
     private readonly string _googleApiKey;
     private readonly string _googleSearchEngineId;
+    private readonly SemaphoreSlim _cacheSemaphore = new(1, 1);
 
     public SearchService(
         IHttpClientFactory httpClientFactory,
@@ -74,10 +75,12 @@ public class SearchService : ISearchService
             // Build URL without API key for safe logging
             var baseUrl = $"https://www.googleapis.com/customsearch/v1?cx={_googleSearchEngineId}&q={Uri.EscapeDataString(query)}&num={Math.Min(maxResults, 10)}";
 
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
             using var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}&key={_googleApiKey}");
-            using var httpResponse = await _httpClient.SendAsync(request, cancellationToken);
+            using var httpResponse = await _httpClient.SendAsync(request, linkedCts.Token);
             httpResponse.EnsureSuccessStatusCode();
-            var response = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
+            var response = await httpResponse.Content.ReadAsStringAsync(linkedCts.Token);
             var searchResponse = JsonSerializer.Deserialize<GoogleSearchResponse>(response, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
@@ -110,6 +113,15 @@ public class SearchService : ISearchService
         catch (JsonException ex)
         {
             _logger.LogError(ex, "Failed to parse Google Custom Search response for: {Query}", query);
+            return Array.Empty<SearchResult>();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Google Custom Search timed out for: {Query}", query);
             return Array.Empty<SearchResult>();
         }
         catch (Exception ex)
@@ -157,23 +169,31 @@ public class SearchService : ISearchService
     {
         cancellationToken.ThrowIfCancellationRequested();
         
-        var queryHash = ComputeHash(query);
-        var resultsJson = JsonSerializer.Serialize(results);
+        await _cacheSemaphore.WaitAsync(cancellationToken);
+        try
+        {
+            var queryHash = ComputeHash(query);
+            var resultsJson = JsonSerializer.Serialize(results);
 
-        var connectionString = $"Data Source={_dbPath}";
-        await using var connection = new SqliteConnection(connectionString);
-        await connection.OpenAsync(cancellationToken);
+            var connectionString = $"Data Source={_dbPath}";
+            await using var connection = new SqliteConnection(connectionString);
+            await connection.OpenAsync(cancellationToken);
 
-        var command = connection.CreateCommand();
-        command.CommandText = @"
-            INSERT OR REPLACE INTO SearchCache (QueryHash, Results, Timestamp)
-            VALUES ($hash, $results, $timestamp)
-        ";
-        command.Parameters.AddWithValue("$hash", queryHash);
-        command.Parameters.AddWithValue("$results", resultsJson);
-        command.Parameters.AddWithValue("$timestamp", DateTime.UtcNow.ToString("O"));
+            var command = connection.CreateCommand();
+            command.CommandText = @"
+                INSERT OR REPLACE INTO SearchCache (QueryHash, Results, Timestamp)
+                VALUES ($hash, $results, $timestamp)
+            ";
+            command.Parameters.AddWithValue("$hash", queryHash);
+            command.Parameters.AddWithValue("$results", resultsJson);
+            command.Parameters.AddWithValue("$timestamp", DateTime.UtcNow.ToString("O"));
 
-        await command.ExecuteNonQueryAsync(cancellationToken);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+        finally
+        {
+            _cacheSemaphore.Release();
+        }
     }
 
     public async Task ClearExpiredCacheAsync(CancellationToken cancellationToken = default)

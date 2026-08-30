@@ -20,6 +20,7 @@ public class OrchestratorService : IOrchestratorService
     private readonly IClarificationManager _clarificationManager;
     private readonly IIterativeResearchManager _iterativeResearchManager;
     private readonly ILogger<OrchestratorService> _logger;
+    private readonly PerformanceMonitor? _performanceMonitor;
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -34,7 +35,8 @@ public class OrchestratorService : IOrchestratorService
         IProgressStreamingService progressStreaming,
         IClarificationManager clarificationManager,
         IIterativeResearchManager iterativeResearchManager,
-        ILogger<OrchestratorService> logger)
+        ILogger<OrchestratorService> logger,
+        PerformanceMonitor? performanceMonitor = null)
     {
         _plannerAgent = plannerAgent;
         _searchAgent = searchAgent;
@@ -44,6 +46,7 @@ public class OrchestratorService : IOrchestratorService
         _clarificationManager = clarificationManager;
         _iterativeResearchManager = iterativeResearchManager;
         _logger = logger;
+        _performanceMonitor = performanceMonitor;
     }
 
     public async IAsyncEnumerable<string> ProcessDeepResearchAsync(
@@ -54,15 +57,19 @@ public class OrchestratorService : IOrchestratorService
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        
-        _logger.LogInformation("Starting deep research for conversation {ConversationId} with derpification level {Level}, has answers: {HasAnswers}", 
-            conversationId, derpificationLevel, clarificationAnswers != null);
+        var timerName = $"DeepResearchProcess:{conversationId}";
+        _performanceMonitor?.StartTimer(timerName);
 
-        // Save user message
-        await _memoryService.SaveMessageAsync(conversationId, "user", prompt, cancellationToken);
+        try
+        {
+            _logger.LogInformation("Starting deep research for conversation {ConversationId} with derpification level {Level}, has answers: {HasAnswers}",
+                conversationId, derpificationLevel, clarificationAnswers != null);
 
-        // Step 1: Get conversation context
-        var context = await _memoryService.GetConversationContextAsync(conversationId, cancellationToken: cancellationToken);
+            // Save user message
+            await _memoryService.SaveMessageAsync(conversationId, "user", prompt, cancellationToken);
+
+            // Step 1: Get conversation context
+            var context = await _memoryService.GetConversationContextAsync(conversationId, cancellationToken: cancellationToken);
 
         // Step 1.5: PHASE 1 - Generate clarifying questions if no answers provided yet
         if (clarificationAnswers == null || clarificationAnswers.Length == 0)
@@ -161,7 +168,19 @@ public class OrchestratorService : IOrchestratorService
             yield return token;
         }
 
-        _logger.LogInformation("Deep research completed for conversation {ConversationId}", conversationId);
+            _logger.LogInformation("Deep research completed for conversation {ConversationId}", conversationId);
+        }
+        finally
+        {
+            if (_performanceMonitor != null)
+            {
+                var elapsed = _performanceMonitor.StopTimer(timerName);
+                _logger.LogInformation(
+                    "Deep research workflow for conversation {ConversationId} ran for {Elapsed}",
+                    conversationId,
+                    elapsed);
+            }
+        }
     }
 
     private async IAsyncEnumerable<string> ExecuteSearchWithProgressAsync(ResearchPlan plan, string conversationId, int derpificationLevel, [EnumeratorCancellation] CancellationToken cancellationToken = default)

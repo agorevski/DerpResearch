@@ -79,13 +79,179 @@ public class UserInteractionTests : IAsyncLifetime
     {
         // Arrange
         await _page!.GotoAsync(_fixture.BaseUrl);
-        
-        // Act
-        await _page.FillAsync("#messageInput", "");
-        
-        // Assert - Initially enabled, but JS validation should prevent send
+
+        // Assert
         var sendBtn = _page.Locator("#sendBtn");
+        (await sendBtn.IsDisabledAsync()).Should().Be(true);
+
+        await _page.FillAsync("#messageInput", "   ");
+        (await sendBtn.IsDisabledAsync()).Should().Be(true);
+    }
+
+    [Fact]
+    public async Task SendButton_ShouldTrackInputState()
+    {
+        await _page!.GotoAsync(_fixture.BaseUrl);
+        var sendBtn = _page.Locator("#sendBtn");
+
+        await _page.FillAsync("#messageInput", "What is machine learning?");
         (await sendBtn.IsEnabledAsync()).Should().Be(true);
+
+        await _page.FillAsync("#messageInput", "");
+        (await sendBtn.IsDisabledAsync()).Should().Be(true);
+    }
+
+    [Fact]
+    public async Task Page_ShouldExposeAccessibleComposerAndLiveStatus()
+    {
+        await _page!.GotoAsync(_fixture.BaseUrl);
+
+        (await _page.GetByLabel("Research question").IsVisibleAsync()).Should().Be(true);
+        (await _page.GetByLabel("Derpification level").IsVisibleAsync()).Should().Be(true);
+        (await _page.Locator("#freshSearchBtn").GetAttributeAsync("aria-label"))
+            .Should().Be("Start a fresh search");
+
+        var conversation = _page.GetByRole(AriaRole.Log);
+        (await conversation.GetAttributeAsync("aria-live")).Should().Be("polite");
+        (await conversation.GetAttributeAsync("aria-busy")).Should().Be("false");
+
+        var status = _page.Locator("#statusMessage");
+        (await status.GetAttributeAsync("aria-live")).Should().Be("polite");
+    }
+
+    [Fact]
+    public async Task FailedRequest_ShouldShowInlineErrorAndRetry()
+    {
+        await _page!.RouteAsync("**/api/chat", async route =>
+        {
+            await route.FulfillAsync(new()
+            {
+                Status = 503,
+                ContentType = "text/plain",
+                Body = "Service temporarily unavailable"
+            });
+        });
+        await _page.GotoAsync(_fixture.BaseUrl);
+
+        await _page.FillAsync("#messageInput", "Test request");
+        await _page.ClickAsync("#sendBtn");
+
+        var status = _page.Locator("#statusMessage");
+        await status.WaitForAsync(new() { State = WaitForSelectorState.Visible });
+        (await status.GetAttributeAsync("role")).Should().Be("alert");
+        (await status.TextContentAsync()).Should().Contain("503");
+        (await _page.Locator("#retryBtn").IsVisibleAsync()).Should().Be(true);
+        (await _page.Locator("#chatContainer").GetAttributeAsync("aria-busy")).Should().Be("false");
+    }
+
+    [Fact]
+    public async Task Clarification_ShouldReuseOriginalPromptFromState()
+    {
+        var requests = new List<string>();
+        await _page!.RouteAsync("**/api/chat", async route =>
+        {
+            requests.Add(route.Request.PostData ?? "");
+            var body = requests.Count == 1
+                ? "data: {\"type\":\"clarification\",\"data\":{\"rationale\":\"Need scope\",\"questions\":[\"Which region?\"]}}\n\ndata: {\"type\":\"done\"}\n\n"
+                : "data: {\"type\":\"done\"}\n\n";
+
+            await route.FulfillAsync(new()
+            {
+                Status = 200,
+                ContentType = "text/event-stream",
+                Body = body
+            });
+        });
+        await _page.GotoAsync(_fixture.BaseUrl);
+
+        const string originalPrompt = "Compare regional market trends";
+        await _page.FillAsync("#messageInput", originalPrompt);
+        await _page.ClickAsync("#sendBtn");
+
+        var clarification = _page.Locator(".clarification-section");
+        await clarification.WaitForAsync(new() { State = WaitForSelectorState.Visible });
+        await _page.Locator(".message.user .message-content").EvaluateAsync(
+            "element => element.textContent = 'Changed rendered text'");
+        await clarification.Locator(".clarification-input").FillAsync("Europe");
+        await clarification.Locator(".clarification-submit-btn").ClickAsync();
+
+        await _page.WaitForFunctionAsync("() => document.querySelector('#chatContainer').getAttribute('aria-busy') === 'false'");
+        requests.Should().HaveCount(2);
+        requests[1].Should().Contain($"\"prompt\":\"{originalPrompt}\"");
+    }
+
+    [Fact]
+    public async Task StreamParser_ShouldHandleFragmentedChunksAndEventBoundaries()
+    {
+        await _page!.GotoAsync(_fixture.BaseUrl);
+
+        var tokens = await _page.EvaluateAsync<string[]>(@"async () => {
+            const encoder = new TextEncoder();
+            const chunks = [
+                'data: {""token"":""hel',
+                'lo""}\r',
+                '\n\r\n',
+                'data: {""token"":""world""}\n\n'
+            ];
+            const stream = new ReadableStream({
+                start(controller) {
+                    chunks.forEach(chunk => controller.enqueue(encoder.encode(chunk)));
+                    controller.close();
+                }
+            });
+            const values = [];
+            await consumeServerSentEvents(stream, data => {
+                values.push(data.token);
+                return true;
+            });
+            return values;
+        }");
+
+        tokens.Should().Equal("hello", "world");
+    }
+
+    [Fact]
+    public async Task Cancel_ShouldRestoreComposerAndShowStatus()
+    {
+        await _page!.GotoAsync(_fixture.BaseUrl);
+        await _page.EvaluateAsync(@"() => {
+            window.fetch = (_, options) => new Promise((resolve, reject) => {
+                options.signal.addEventListener('abort', () => reject(new DOMException('Cancelled', 'AbortError')));
+            });
+        }");
+
+        await _page.FillAsync("#messageInput", "Long-running research");
+        await _page.ClickAsync("#sendBtn");
+        await _page.Locator("#cancelBtn").WaitForAsync(new() { State = WaitForSelectorState.Visible });
+        await _page.ClickAsync("#cancelBtn");
+
+        await _page.WaitForFunctionAsync(
+            "() => document.querySelector('#chatContainer').getAttribute('aria-busy') === 'false'");
+        (await _page.Locator("#statusText").TextContentAsync()).Should().Contain("cancelled");
+        (await _page.Locator("#cancelBtn").IsVisibleAsync()).Should().BeFalse();
+        (await _page.Locator("#sendBtn").IsDisabledAsync()).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task FreshSearch_ShouldAbortAndResetActiveResearch()
+    {
+        await _page!.GotoAsync(_fixture.BaseUrl);
+        await _page.EvaluateAsync(@"() => {
+            window.fetch = (_, options) => new Promise((resolve, reject) => {
+                options.signal.addEventListener('abort', () => reject(new DOMException('Cancelled', 'AbortError')));
+            });
+        }");
+
+        await _page.FillAsync("#messageInput", "Long-running research");
+        await _page.ClickAsync("#sendBtn");
+        await _page.EvaluateAsync("document.getElementById('freshSearchBtn').style.display = 'flex'");
+        await _page.ClickAsync("#freshSearchBtn");
+
+        (await _page.Locator(".message").CountAsync()).Should().Be(1);
+        (await _page.Locator("#chatContainer").GetAttributeAsync("aria-busy")).Should().Be("false");
+        (await _page.Locator("#statusMessage").IsVisibleAsync()).Should().BeFalse();
+        (await _page.Locator("#cancelBtn").IsVisibleAsync()).Should().BeFalse();
+        (await _page.Locator("#messageInput").InputValueAsync()).Should().BeEmpty();
     }
 
     [Fact]
@@ -188,9 +354,13 @@ public class UserInteractionTests : IAsyncLifetime
         await _page!.GotoAsync(_fixture.BaseUrl);
         var header = _page.Locator(".header");
         
-        // Act - Scroll chat container
+        // Act - Add enough content to make the chat scrollable, then scroll it
         await _page.EvaluateAsync(@"
-            document.getElementById('chatContainer').scrollTop = 100;
+            const chat = document.getElementById('chatContainer');
+            const spacer = document.createElement('div');
+            spacer.style.height = '1000px';
+            chat.appendChild(spacer);
+            chat.scrollTop = 100;
         ");
         await Task.Delay(200); // Wait for sticky header animation
         

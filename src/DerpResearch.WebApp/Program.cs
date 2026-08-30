@@ -72,10 +72,14 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Add performance monitoring
+builder.Services.AddSingleton<PerformanceMonitor>();
+
 // Add health checks with custom initialization check
 builder.Services.AddSingleton<InitializationHealthCheck>();
 builder.Services.AddHealthChecks()
-    .AddCheck<InitializationHealthCheck>("initialization", tags: new[] { "ready" });
+    .AddCheck<InitializationHealthCheck>("initialization", tags: new[] { "ready" })
+    .AddCheck<PerformanceHealthCheck>("performance", tags: new[] { "ready" });
 
 // Add HttpClient for SearchService
 builder.Services.AddHttpClient();

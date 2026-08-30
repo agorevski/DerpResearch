@@ -93,6 +93,7 @@
             align-items: center;
             justify-content: center;
             gap: 15px;
+            min-width: 0;
             transition: transform 0.3s ease;
         }
 
@@ -105,6 +106,7 @@
             flex-direction: column;
             align-items: center;
             gap: 5px;
+            min-width: 0;
         }
 
         .derp-label {
@@ -118,6 +120,7 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            max-width: 100%;
         }
 
         .derp-slider-label {
@@ -174,6 +177,7 @@
 
         .fresh-search-btn {
             padding: 8px 16px;
+            min-height: 44px;
             background: rgba(255, 255, 255, 0.2);
             color: white;
             border: 2px solid rgba(255, 255, 255, 0.4);
@@ -518,6 +522,65 @@
             align-items: center;
         }
 
+        .status-message {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            background: #eef2ff;
+            color: #3f51b5;
+            font-size: 14px;
+        }
+
+        .status-message.active {
+            display: flex;
+        }
+
+        .status-message.error {
+            background: #fff1f0;
+            color: #a61b1b;
+            border: 1px solid #ffc9c5;
+        }
+
+        .status-message.cancelled {
+            background: #fff8e1;
+            color: #7a5600;
+            border: 1px solid #ffe082;
+        }
+
+        .retry-btn {
+            flex-shrink: 0;
+            padding: 7px 12px;
+            border: 1px solid currentColor;
+            border-radius: 16px;
+            color: inherit;
+            background: transparent;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .cancel-btn {
+            display: none;
+            min-height: 44px;
+            padding: 12px 18px;
+            border: 2px solid #764ba2;
+            border-radius: 25px;
+            background: white;
+            color: #653d91;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .cancel-btn.active {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         #messageInput {
             flex: 1;
             padding: 15px 20px;
@@ -551,6 +614,18 @@
         #sendBtn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
         }
 
         .typing-indicator {
@@ -696,6 +771,7 @@
                 border-radius: 0;
                 height: 100vh;
                 height: -webkit-fill-available;
+                height: 100dvh;
                 max-height: none;
             }
 
@@ -733,6 +809,7 @@
 
             .derpification-control {
                 gap: 12px;
+                width: 100%;
             }
 
             .brain-container {
@@ -747,11 +824,17 @@
 
             .derp-slider-container {
                 flex: 1;
-                min-width: 180px;
+                min-width: 0;
+            }
+
+            .derp-slider-wrapper {
+                width: 100%;
             }
 
             .derp-slider {
-                width: 280px;
+                width: auto;
+                min-width: 0;
+                flex: 1;
                 height: 10px;
             }
 
@@ -776,10 +859,10 @@
 
             /* Mobile: Smaller Fresh Search button with trash icon only */
             .fresh-search-btn {
-                padding: 6px;
+                padding: 8px;
                 border-radius: 50%;
-                min-width: 36px;
-                min-height: 36px;
+                min-width: 44px;
+                min-height: 44px;
                 gap: 0;
             }
 
@@ -925,6 +1008,13 @@
                 flex-shrink: 0; /* Prevent button from shrinking */
             }
 
+            .cancel-btn {
+                padding: 10px 14px;
+                border-radius: 22px;
+                font-size: 14px;
+                flex-shrink: 0;
+            }
+
             .synthesis-divider:after {
                 font-size: 13px;
             }
@@ -941,11 +1031,7 @@
             }
 
             .derp-slider-container {
-                min-width: 180px;
-            }
-
-            .derp-slider {
-                width: 240px;
+                min-width: 0;
             }
 
             .brain-container {
@@ -1075,10 +1161,10 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
+        <header class="header">
             <h1>
                 <div class="brain-container">
-                    <svg class="brain-svg" id="brainSvg" viewBox="0 0 120 100" xmlns="http://www.w3.org/2000/svg">
+                    <svg class="brain-svg" id="brainSvg" viewBox="0 0 120 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <!-- Brain base shape - more organic human brain shape -->
                         <path d="M 60 15 
                                  C 45 15, 35 20, 30 28
@@ -1166,11 +1252,14 @@
                     <div class="derp-label">Derpification</div>
                     <div class="derp-slider-wrapper">
                         <span class="derp-slider-label left">Derp</span>
-                        <input type="range" min="0" max="100" value="100" class="derp-slider" id="derpSlider">
+                        <input type="range" min="0" max="100" value="100" class="derp-slider" id="derpSlider"
+                               aria-label="Derpification level" aria-describedby="derpificationHint">
                         <span class="derp-slider-label">Smart</span>
                     </div>
+                    <span id="derpificationHint" class="sr-only">Choose how much brain power the research assistant should use, from Derp to Smart.</span>
                 </div>
-                <button id="freshSearchBtn" class="fresh-search-btn" style="display: none;">
+                <button id="freshSearchBtn" class="fresh-search-btn" type="button" style="display: none;"
+                        aria-label="Start a fresh search">
                     <svg class="fresh-search-icon-desktop" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M14 8C14 11.3137 11.3137 14 8 14C4.68629 14 2 11.3137 2 8C2 4.68629 4.68629 2 8 2C9.84871 2 11.5151 2.8643 12.6 4.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                         <path d="M12 1V4.5H8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1181,9 +1270,11 @@
                     <span class="fresh-search-text">Fresh Search</span>
                 </button>
             </div>
-        </div>
+        </header>
 
-        <div class="chat-container" id="chatContainer">
+        <section class="chat-container" id="chatContainer" role="log" aria-live="polite"
+                 aria-relevant="additions text" aria-busy="false" aria-labelledby="conversationHeading">
+            <h2 id="conversationHeading" class="sr-only">Research conversation</h2>
             <div class="message assistant">
                 <div class="message-content">
                     👋 Welcome! I'm your Derp Research assistant. Ask me anything and I'll search the web, analyze sources, and provide comprehensive answers with citations.
@@ -1191,9 +1282,10 @@
                     Try asking: <em>"Compare GPT-4 and Claude 3 in terms of capabilities"</em>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <div class="typing-indicator" id="typingIndicator">
+        <div class="typing-indicator" id="typingIndicator" role="status" aria-live="polite" aria-hidden="true">
+            <span class="sr-only">Research in progress</span>
             <div class="typing-dots">
                 <span></span>
                 <span></span>
@@ -1201,12 +1293,18 @@
             </div>
         </div>
 
-        <div class="input-container">
-            <div class="input-wrapper">
-                <input type="text" id="messageInput" placeholder="Ask me anything..." />
-                <button id="sendBtn">Send</button>
+        <form class="input-container" id="messageForm">
+            <div class="status-message" id="statusMessage" role="status" aria-live="polite">
+                <span id="statusText"></span>
+                <button type="button" class="retry-btn" id="retryBtn" hidden>Retry</button>
             </div>
-        </div>
+            <div class="input-wrapper">
+                <label for="messageInput" class="sr-only">Research question</label>
+                <input type="text" id="messageInput" placeholder="Ask me anything..." autocomplete="off" />
+                <button id="cancelBtn" class="cancel-btn" type="button" aria-label="Cancel current research">Cancel</button>
+                <button id="sendBtn" type="submit" disabled>Send</button>
+            </div>
+        </form>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -1214,6 +1312,9 @@
         let conversationId = null;
         let currentMode = 'deep-research';
         let isProcessing = false;
+        let activeRequestController = null;
+        let currentOriginalPrompt = null;
+        let lastRequest = null;
         let currentResearchDiv = null;
         let currentProgressDiv = null;
         let currentPlanDiv = null;
@@ -1231,10 +1332,15 @@
         let charsSinceLastMarkdownRender = 0;
 
         const chatContainer = document.getElementById('chatContainer');
+        const messageForm = document.getElementById('messageForm');
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
         const typingIndicator = document.getElementById('typingIndicator');
         const freshSearchBtn = document.getElementById('freshSearchBtn');
+        const statusMessage = document.getElementById('statusMessage');
+        const statusText = document.getElementById('statusText');
+        const retryBtn = document.getElementById('retryBtn');
 
         // Derpification controls
         const derpSlider = document.getElementById('derpSlider');
@@ -1283,31 +1389,30 @@
             }
         }
 
-        // Send message
-        sendBtn.addEventListener('click', sendMessage);
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
+        function updateComposerState() {
+            sendBtn.disabled = isProcessing || messageInput.value.trim().length === 0;
+        }
+
+        function setStatus(message = '', type = 'info', canRetry = false) {
+            statusText.textContent = message;
+            statusMessage.className = `status-message${message ? ' active' : ''}${type !== 'info' ? ` ${type}` : ''}`;
+            statusMessage.setAttribute('role', type === 'error' ? 'alert' : 'status');
+            retryBtn.hidden = !canRetry;
+        }
+
+        function setProcessingState(processing) {
+            isProcessing = processing;
+            chatContainer.setAttribute('aria-busy', processing.toString());
+            typingIndicator.classList.toggle('active', processing);
+            typingIndicator.setAttribute('aria-hidden', (!processing).toString());
+            cancelBtn.classList.toggle('active', processing);
+            updateComposerState();
+        }
+
+        function resetResearchTracking(keepResearchDiv = false) {
+            if (!keepResearchDiv) {
+                currentResearchDiv = null;
             }
-        });
-
-        async function sendMessage() {
-            const message = messageInput.value.trim();
-            if (!message || isProcessing) return;
-
-            isProcessing = true;
-            sendBtn.disabled = true;
-
-            // Add user message
-            addMessage(message, 'user');
-            messageInput.value = '';
-
-            // Show typing indicator
-            typingIndicator.classList.add('active');
-
-            // Reset research tracking and buffer state
-            currentResearchDiv = null;
             currentProgressDiv = null;
             currentPlanDiv = null;
             currentQueriesDiv = null;
@@ -1315,89 +1420,205 @@
             currentSynthesisDiv = null;
             tokenBuffer = [];
             charsSinceLastMarkdownRender = 0;
+        }
+
+        messageForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            sendMessage();
+        });
+        messageInput.addEventListener('input', updateComposerState);
+        messageInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && event.isComposing) {
+                event.preventDefault();
+            }
+        });
+        cancelBtn.addEventListener('click', () => {
+            if (activeRequestController) {
+                activeRequestController.abort('user-cancelled');
+            }
+        });
+        retryBtn.addEventListener('click', () => {
+            if (lastRequest && !isProcessing) {
+                runChatRequest(lastRequest.payload, lastRequest.options);
+            }
+        });
+
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message || isProcessing) return;
+
+            currentOriginalPrompt = message;
+            addMessage(message, 'user');
+            messageInput.value = '';
+            updateComposerState();
+
+            await runChatRequest({
+                prompt: message,
+                mode: currentMode,
+                conversationId: conversationId,
+                derpificationLevel: derpificationLevel
+            }, {
+                allowClarification: true,
+                keepResearchDiv: false
+            });
+        }
+
+        async function runChatRequest(payload, options) {
+            if (isProcessing) return false;
+
+            const requestOptions = {
+                allowClarification: options?.allowClarification !== false,
+                keepResearchDiv: options?.keepResearchDiv === true
+            };
+            lastRequest = {
+                payload: { ...payload },
+                options: { ...requestOptions }
+            };
+
+            stopSmoothRendering();
+            resetResearchTracking(requestOptions.keepResearchDiv);
+
+            const controller = new AbortController();
+            activeRequestController = controller;
+            setProcessingState(true);
+            setStatus('Researching…');
 
             try {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Accept': 'text/event-stream'
                     },
-                    body: JSON.stringify({
-                        prompt: message,
-                        mode: currentMode,
-                        conversationId: conversationId,
-                        derpificationLevel: derpificationLevel
-                    })
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
                 });
 
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
+                if (!response.ok) {
+                    const responseText = (await response.text()).trim();
+                    const detail = responseText ? ` ${responseText.slice(0, 240)}` : '';
+                    throw new Error(`The research service returned ${response.status}.${detail}`);
+                }
 
+                const contentType = response.headers.get('content-type') || '';
+                if (!contentType.toLowerCase().includes('text/event-stream')) {
+                    throw new Error('The research service returned an unexpected response format.');
+                }
+                if (!response.body) {
+                    throw new Error('The research service returned an empty response.');
+                }
+
+                await consumeServerSentEvents(response.body, (data) => {
+                    return handleStreamEvent(data, requestOptions.allowClarification);
+                });
+
+                setStatus();
+                return true;
+            } catch (error) {
+                if (controller.signal.aborted) {
+                    if (controller.signal.reason !== 'fresh-search') {
+                        setStatus('Research cancelled. You can edit your question or retry.', 'cancelled', true);
+                    }
+                } else {
+                    console.error('Research request failed:', error);
+                    setStatus(error.message || 'Research failed. Please try again.', 'error', true);
+                }
+                return false;
+            } finally {
+                stopSmoothRendering();
+                if (activeRequestController === controller) {
+                    activeRequestController = null;
+                    setProcessingState(false);
+                    messageInput.focus();
+                }
+            }
+        }
+
+        async function consumeServerSentEvents(stream, onEvent) {
+            const reader = stream.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            const processEvents = async (flush = false) => {
                 while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
+                    const boundary = buffer.match(/\r?\n\r?\n/);
+                    if (!boundary) break;
 
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop() || '';
-
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const data = JSON.parse(line.substring(6));
-                                
-                                if (data.conversationId && !conversationId) {
-                                    conversationId = data.conversationId;
-                                }
-
-                                if (data.type === 'done') {
-                                    break;
-                                }
-
-                                if (data.type === 'error') {
-                                    console.error('Error:', data.token);
-                                    break;
-                                }
-
-                                // Handle different message types
-                                if (data.type === 'clarification') {
-                                    handleClarificationQuestions(data.data);
-                                } else if (data.type === 'progress') {
-                                    handleProgressUpdate(data.data);
-                                } else if (data.type === 'plan') {
-                                    handlePlanUpdate(data.data);
-                                } else if (data.type === 'search_query') {
-                                    handleSearchQuery(data.data);
-                                } else if (data.type === 'source') {
-                                    handleSourceUpdate(data.data);
-                                } else if (data.type === 'reflection') {
-                                    handleReflectionUpdate(data.data);
-                                } else if (data.token) {
-                                    // Regular content token
-                                    handleContentToken(data.token);
-                                }
-
-                                // Auto-scroll
-                                chatContainer.scrollTop = chatContainer.scrollHeight;
-                            } catch (e) {
-                                console.error('Parse error:', e, line);
-                            }
-                        }
+                    const eventBlock = buffer.slice(0, boundary.index);
+                    buffer = buffer.slice(boundary.index + boundary[0].length);
+                    if (processServerSentEvent(eventBlock, onEvent) === false) {
+                        await reader.cancel();
+                        return false;
                     }
                 }
-            } catch (error) {
-                console.error('Error:', error);
-                addMessage('Sorry, an error occurred. Please try again.', 'assistant');
-            } finally {
-                // Stop smooth rendering and flush remaining tokens
-                stopSmoothRendering();
-                
-                typingIndicator.classList.remove('active');
-                isProcessing = false;
-                sendBtn.disabled = false;
-                messageInput.focus();
+
+                if (flush && buffer.trim()) {
+                    const finalBlock = buffer;
+                    buffer = '';
+                    return processServerSentEvent(finalBlock, onEvent);
+                }
+                return true;
+            };
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                    buffer += decoder.decode();
+                    await processEvents(true);
+                    return;
+                }
+
+                buffer += decoder.decode(value, { stream: true });
+                if (await processEvents() === false) return;
             }
+        }
+
+        function processServerSentEvent(eventBlock, onEvent) {
+            const dataLines = eventBlock
+                .split(/\r?\n/)
+                .filter(line => line.startsWith('data:'))
+                .map(line => line.slice(5).replace(/^ /, ''));
+
+            if (dataLines.length === 0) return true;
+
+            const payload = dataLines.join('\n');
+            let data;
+            try {
+                data = JSON.parse(payload);
+            } catch (error) {
+                throw new Error(`The research stream contained invalid data: ${error.message}`);
+            }
+            return onEvent(data);
+        }
+
+        function handleStreamEvent(data, allowClarification) {
+            if (data.conversationId && !conversationId) {
+                conversationId = data.conversationId;
+            }
+
+            if (data.type === 'done') return false;
+            if (data.type === 'error') {
+                throw new Error(data.token || data.data?.message || 'The research service reported an error.');
+            }
+
+            if (data.type === 'clarification' && allowClarification) {
+                handleClarificationQuestions(data.data);
+            } else if (data.type === 'progress') {
+                handleProgressUpdate(data.data);
+            } else if (data.type === 'plan') {
+                handlePlanUpdate(data.data);
+            } else if (data.type === 'search_query') {
+                handleSearchQuery(data.data);
+            } else if (data.type === 'source') {
+                handleSourceUpdate(data.data);
+            } else if (data.type === 'reflection') {
+                handleReflectionUpdate(data.data);
+            } else if (data.token) {
+                handleContentToken(data.token);
+            }
+
+            smartAutoScroll();
+            return true;
         }
 
         function ensureResearchDiv() {
@@ -1413,150 +1634,76 @@
             return currentResearchDiv;
         }
 
+        let clarificationSequence = 0;
+
         function handleClarificationQuestions(data) {
             const researchDiv = ensureResearchDiv();
-            
+            clarificationSequence += 1;
+
             const clarDiv = document.createElement('div');
             clarDiv.className = 'clarification-section';
             clarDiv.innerHTML = `
-                <div class="clarification-header">💭 Help me understand your research needs better</div>
+                <h3 class="clarification-header">💭 Help me understand your research needs better</h3>
                 <p class="clarification-rationale">${escapeHtml(data.rationale)}</p>
-                <div class="clarification-questions" id="clarificationQuestions">
+                <div class="clarification-questions">
                     ${data.questions.map((q, i) => `
                         <div class="clarification-question">
-                            <label>${escapeHtml(q)}</label>
-                            <input type="text" class="clarification-input" data-index="${i}" placeholder="Your answer..." />
+                            <label for="clarification-${clarificationSequence}-${i}">${escapeHtml(q)}</label>
+                            <input type="text" id="clarification-${clarificationSequence}-${i}" class="clarification-input"
+                                   data-index="${i}" placeholder="Your answer..." />
                         </div>
                     `).join('')}
                 </div>
-                <button class="clarification-submit-btn" onclick="submitClarificationAnswers()">Continue with Research</button>
+                <button class="clarification-submit-btn" type="button">Continue with Research</button>
             `;
             researchDiv.appendChild(clarDiv);
-            
+            clarDiv.querySelector('.clarification-submit-btn').addEventListener('click', () => {
+                submitClarificationAnswers(clarDiv);
+            });
+
             // Scroll to bring the clarification section into view (showing the top)
             setTimeout(() => {
                 clarDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }, 100);
         }
 
-        window.submitClarificationAnswers = function() {
-            const inputs = document.querySelectorAll('.clarification-input');
+        window.submitClarificationAnswers = async function(section = document.querySelector('.clarification-section:last-of-type')) {
+            if (!section || isProcessing) return;
+
+            const inputs = section.querySelectorAll('.clarification-input');
             const answers = Array.from(inputs).map(input => input.value.trim());
-            
-            // Filter out empty answers
             const validAnswers = answers.filter(a => a.length > 0);
-            
+
             if (validAnswers.length === 0) {
-                alert('Please answer at least one question to help me understand your needs better.');
+                setStatus('Please answer at least one clarification question.', 'error');
+                inputs[0]?.focus();
                 return;
             }
-            
-            // Get the original prompt from the last user message
-            const userMessages = document.querySelectorAll('.message.user');
-            const lastUserMessage = userMessages[userMessages.length - 1];
-            const originalPrompt = lastUserMessage ? lastUserMessage.textContent.trim() : '';
-            
-            // Disable the button and inputs
-            document.querySelector('.clarification-submit-btn').disabled = true;
+
+            const submitButton = section.querySelector('.clarification-submit-btn');
+            submitButton.disabled = true;
             inputs.forEach(input => input.disabled = true);
-            
-            // Send new request with clarification answers
-            sendMessageWithClarification(originalPrompt, answers);
+
+            const succeeded = await sendMessageWithClarification(currentOriginalPrompt, answers);
+            if (!succeeded && activeRequestController === null) {
+                submitButton.disabled = false;
+                inputs.forEach(input => input.disabled = false);
+            }
         };
 
         async function sendMessageWithClarification(originalPrompt, clarificationAnswers) {
-            if (!originalPrompt || isProcessing) return;
+            if (!originalPrompt || isProcessing) return false;
 
-            isProcessing = true;
-            sendBtn.disabled = true;
-
-            // Show typing indicator
-            typingIndicator.classList.add('active');
-
-            // Reset research tracking (keep existing clarification UI visible)
-            currentProgressDiv = null;
-            currentPlanDiv = null;
-            currentQueriesDiv = null;
-            currentSourcesDiv = null;
-            currentSynthesisDiv = null;
-            tokenBuffer = [];
-            charsSinceLastMarkdownRender = 0;
-
-            try {
-                const response = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        prompt: originalPrompt,
-                        mode: currentMode,
-                        conversationId: conversationId,
-                        derpificationLevel: derpificationLevel,
-                        clarificationAnswers: clarificationAnswers
-                    })
-                });
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop() || '';
-
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const data = JSON.parse(line.substring(6));
-                                
-                                if (data.conversationId && !conversationId) {
-                                    conversationId = data.conversationId;
-                                }
-
-                                if (data.type === 'done') {
-                                    break;
-                                }
-
-                                if (data.type === 'error') {
-                                    console.error('Error:', data.token);
-                                    break;
-                                }
-
-                                // Handle different message types (skip clarification this time)
-                                if (data.type === 'progress') {
-                                    handleProgressUpdate(data.data);
-                                } else if (data.type === 'plan') {
-                                    handlePlanUpdate(data.data);
-                                } else if (data.type === 'search_query') {
-                                    handleSearchQuery(data.data);
-                                } else if (data.type === 'source') {
-                                    handleSourceUpdate(data.data);
-                                } else if (data.token) {
-                                    handleContentToken(data.token);
-                                }
-
-                                chatContainer.scrollTop = chatContainer.scrollHeight;
-                            } catch (e) {
-                                console.error('Parse error:', e, line);
-                            }
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                addMessage('Sorry, an error occurred. Please try again.', 'assistant');
-            } finally {
-                stopSmoothRendering();
-                typingIndicator.classList.remove('active');
-                isProcessing = false;
-                sendBtn.disabled = false;
-                messageInput.focus();
-            }
+            return runChatRequest({
+                prompt: originalPrompt,
+                mode: currentMode,
+                conversationId: conversationId,
+                derpificationLevel: derpificationLevel,
+                clarificationAnswers: clarificationAnswers
+            }, {
+                allowClarification: false,
+                keepResearchDiv: true
+            });
         }
 
         function handleProgressUpdate(data) {
@@ -1872,6 +2019,15 @@
         }
 
         function clearChatAndStartFresh() {
+            const controller = activeRequestController;
+            activeRequestController = null;
+            if (controller) {
+                controller.abort('fresh-search');
+            }
+
+            stopSmoothRendering();
+            setProcessingState(false);
+
             // Clear all messages except the welcome message
             const messages = chatContainer.querySelectorAll('.message');
             messages.forEach((message, index) => {
@@ -1882,34 +2038,32 @@
 
             // Reset conversation state
             conversationId = null;
-            
-            // Reset research tracking variables
-            currentResearchDiv = null;
-            currentProgressDiv = null;
-            currentPlanDiv = null;
-            currentQueriesDiv = null;
-            currentSourcesDiv = null;
-            currentSynthesisDiv = null;
-            
-            // Stop any ongoing rendering
-            stopSmoothRendering();
-            tokenBuffer = [];
-            charsSinceLastMarkdownRender = 0;
-            
+            currentOriginalPrompt = null;
+            lastRequest = null;
+            resetResearchTracking();
+            userIsScrolling = false;
+            lastScrollPosition = 0;
+            messageInput.value = '';
+            setStatus();
+
             // Hide the button
             hideFreshSearchButton();
-            
+
+            header.classList.remove('compact');
+
             // Focus input
             messageInput.focus();
-            
+
             // Scroll to top
             chatContainer.scrollTop = 0;
+            updateComposerState();
         }
 
         // Fresh Search button click handler
         freshSearchBtn.addEventListener('click', clearChatAndStartFresh);
 
         // Focus input on load
+        updateComposerState();
         messageInput.focus();
     </script>
 </body>

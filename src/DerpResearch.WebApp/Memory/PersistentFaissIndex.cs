@@ -8,6 +8,7 @@ namespace DeepResearch.WebApp.Memory;
 /// </summary>
 public class PersistentFaissIndex
 {
+    private const int MaxVectorsToKeep = 10000;
     private readonly int _dimension;
     private readonly Dictionary<int, float[]> _vectors;
     private int _nextId;
@@ -128,6 +129,13 @@ public class PersistentFaissIndex
         lock (_lock)
         {
             _vectors[id] = embedding;
+
+            if (_vectors.Count > MaxVectorsToKeep)
+            {
+                _logger?.LogWarning(
+                    "Vector index is large ({Count} vectors), consider compacting",
+                    _vectors.Count);
+            }
         }
 
         _logger?.LogDebug("Added and persisted vector {VectorId} with dimension {Dimension}", id, _dimension);

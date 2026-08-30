@@ -112,6 +112,36 @@ public class ResponsiveDesignTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Mobile_FreshSearchButton_ShouldMeetMinimumTouchTarget()
+    {
+        await _mobilePage!.GotoAsync(_fixture.BaseUrl);
+        await _mobilePage.EvaluateAsync(
+            "document.getElementById('freshSearchBtn').style.display = 'flex'");
+
+        var boundingBox = await _mobilePage.Locator("#freshSearchBtn").BoundingBoxAsync();
+
+        boundingBox!.Width.Should().BeGreaterOrEqualTo(43.9f);
+        boundingBox.Height.Should().BeGreaterOrEqualTo(43.9f);
+    }
+
+    [Fact]
+    public async Task Mobile_HeaderControls_ShouldNotOverflowViewport()
+    {
+        await _mobilePage!.GotoAsync(_fixture.BaseUrl);
+        await _mobilePage.EvaluateAsync(
+            "document.getElementById('freshSearchBtn').style.display = 'flex'");
+
+        var hasHorizontalOverflow = await _mobilePage.EvaluateAsync<bool>(
+            "() => document.documentElement.scrollWidth > document.documentElement.clientWidth");
+        var sliderBox = await _mobilePage.Locator("#derpSlider").BoundingBoxAsync();
+        var viewport = _mobilePage.ViewportSize!;
+
+        hasHorizontalOverflow.Should().BeFalse();
+        sliderBox!.X.Should().BeGreaterOrEqualTo(0);
+        (sliderBox.X + sliderBox.Width).Should().BeLessOrEqualTo(viewport.Width);
+    }
+
+    [Fact]
     public async Task Mobile_HeaderCompactMode_ShouldHideSubtitle()
     {
         // Act
@@ -119,7 +149,11 @@ public class ResponsiveDesignTests : IAsyncLifetime
         
         // Trigger compact mode by scrolling
         await _mobilePage.EvaluateAsync(@"
-            document.getElementById('chatContainer').scrollTop = 100;
+            const chat = document.getElementById('chatContainer');
+            const spacer = document.createElement('div');
+            spacer.style.height = '1000px';
+            chat.appendChild(spacer);
+            chat.scrollTop = 100;
         ");
         await Task.Delay(300); // Wait for animation
         
@@ -224,6 +258,12 @@ public class ResponsiveDesignTests : IAsyncLifetime
     {
         // Act
         await _mobilePage!.GotoAsync(_fixture.BaseUrl);
+        await _mobilePage.EvaluateAsync(@"
+            const message = document.createElement('div');
+            message.className = 'message user';
+            message.innerHTML = '<div class=""message-content"">Test message</div>';
+            document.getElementById('chatContainer').appendChild(message);
+        ");
         
         // Assert
         var userMessage = _mobilePage.Locator(".message.user .message-content");
@@ -351,10 +391,10 @@ public class ResponsiveDesignTests : IAsyncLifetime
         
         // Assert
         var container = _mobilePage.Locator(".container");
-        var height = await container.EvaluateAsync<string>("el => getComputedStyle(el).height");
+        var boundingBox = await container.BoundingBoxAsync();
+        var viewportHeight = await _mobilePage.EvaluateAsync<float>("window.innerHeight");
         
-        // Should use viewport units or be 100vh
-        height.Should().MatchRegex(@"(100vh|100%)", 
-            "because mobile container should fill screen height");
+        boundingBox!.Height.Should().BeApproximately(viewportHeight, 1,
+            "because the mobile container should fill the dynamic viewport height");
     }
 }
