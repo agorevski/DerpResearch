@@ -35,7 +35,6 @@ foreach (var source in builder.Configuration.Sources)
 }
 
 // Register strongly-typed configuration classes
-builder.Services.Configure<AzureOpenAIConfiguration>(builder.Configuration.GetSection(AzureOpenAIConfiguration.Section));
 builder.Services.Configure<MemoryConfiguration>(builder.Configuration.GetSection(MemoryConfiguration.Section));
 builder.Services.Configure<SearchConfiguration>(builder.Configuration.GetSection(SearchConfiguration.Section));
 builder.Services.Configure<GoogleCustomSearchConfiguration>(builder.Configuration.GetSection(GoogleCustomSearchConfiguration.Section));
@@ -43,25 +42,6 @@ builder.Services.Configure<ReflectionConfiguration>(builder.Configuration.GetSec
 builder.Services.Configure<MockServicesConfiguration>(builder.Configuration.GetSection(MockServicesConfiguration.Section));
 builder.Services.Configure<ResilienceConfiguration>(builder.Configuration.GetSection(ResilienceConfiguration.Section));
 builder.Services.Configure<ApiKeyAuthenticationConfiguration>(builder.Configuration.GetSection(ApiKeyAuthenticationConfiguration.Section));
-
-// Validate critical configuration
-startupLogger.LogInformation("Validating configuration...");
-var azureEndpoint = builder.Configuration["AzureOpenAI:Endpoint"];
-var azureApiKey = builder.Configuration["AzureOpenAI:ApiKey"];
-var dbPath = builder.Configuration["Memory:DatabasePath"];
-
-startupLogger.LogInformation("AzureOpenAI:Endpoint configured: {HasEndpoint}", !string.IsNullOrEmpty(azureEndpoint));
-startupLogger.LogInformation("AzureOpenAI:ApiKey configured: {HasApiKey}", !string.IsNullOrEmpty(azureApiKey));
-startupLogger.LogInformation("Memory:DatabasePath: {DbPath}", dbPath ?? "NOT SET");
-
-if (string.IsNullOrEmpty(azureEndpoint))
-{
-    startupLogger.LogError("FATAL: AzureOpenAI:Endpoint is not configured!");
-}
-if (string.IsNullOrEmpty(azureApiKey))
-{
-    startupLogger.LogError("FATAL: AzureOpenAI:ApiKey is not configured!");
-}
 
 // Add services to the container
 builder.Services.AddControllers()
@@ -130,6 +110,7 @@ builder.Services.AddRateLimiter(options =>
 // Check if mock services should be used
 var useMockServices = builder.Configuration.GetValue<bool>("UseMockServices", false);
 var useResilientServices = builder.Configuration.GetValue<bool>("UseResilientServices", true);
+builder.Services.AddSelectedLLMProvider(builder.Configuration, useMockServices);
 startupLogger.LogInformation("=== SERVICE REGISTRATION MODE: {Mode} ===", 
     useMockServices ? "MOCK SERVICES" : "REAL SERVICES");
 startupLogger.LogInformation("=== RESILIENCE PATTERNS: {Enabled} ===", 
@@ -173,8 +154,7 @@ try
     else
     {
         startupLogger.LogInformation(">>> Registering REAL Services:");
-        startupLogger.LogInformation("  ✓ AzureOpenAIProvider");
-        builder.Services.AddSingleton<ILLMProvider, AzureOpenAIProvider>();
+        startupLogger.LogInformation("  ✓ Selected LLM provider");
         
         // Register LLM service with optional resilience wrapper
         if (useResilientServices)

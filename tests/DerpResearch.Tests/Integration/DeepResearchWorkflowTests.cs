@@ -23,6 +23,7 @@ public class DeepResearchWorkflowTests : IClassFixture<WebApplicationFactory<Pro
     {
         _factory = factory.WithWebHostBuilder(builder =>
         {
+            builder.UseSetting("UseMockServices", "true");
             builder.ConfigureAppConfiguration((context, config) =>
             {
                 // Clear existing sources and add test configuration

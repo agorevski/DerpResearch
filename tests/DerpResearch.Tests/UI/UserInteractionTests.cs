@@ -211,6 +211,195 @@ public class UserInteractionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task StreamedSynthesis_ShouldRenderLongTokensPromptlyAsSafeMarkdown()
+    {
+        await _page!.GotoAsync(_fixture.BaseUrl);
+
+        await _page.EvaluateAsync(@"() => {
+            handleStreamEvent({ type: 'progress', data: { message: 'Searching' } }, true);
+            handleStreamEvent({
+                token: '**Summary** ' + 'research '.repeat(600) +
+                    'FINAL_TOKEN <img src=x onerror=alert(1)> ' +
+                    '<script>window.synthesisInjected = true</script> [bad](javascript:alert(1))'
+            }, true);
+        }");
+        await _page.WaitForFunctionAsync(
+            "() => document.querySelector('.synthesis-divider + div')?.textContent.includes('FINAL_TOKEN')",
+            null, new() { Timeout = 1000 });
+
+        var result = await _page.EvaluateAsync<string[]>(@"() => {
+            const synthesis = currentSynthesisDiv;
+            return [
+                synthesis.textContent,
+                synthesis.querySelector('strong')?.textContent || '',
+                String(synthesis.querySelector('img')?.hasAttribute('onerror') || false),
+                String(Boolean(synthesis.querySelector('script') || window.synthesisInjected)),
+                synthesis.querySelector('a')?.getAttribute('href') || '',
+                document.querySelector('.progress-stage')?.textContent || ''
+            ];
+        }");
+
+        result[0].Should().Contain("FINAL_TOKEN");
+        result[1].Should().Be("Summary");
+        result[2].Should().Be("false");
+        result[3].Should().Be("false");
+        result[4].Should().BeEmpty();
+        result[5].Should().Be("Searching");
+    }
+
+    [Fact]
+    public async Task Sources_ShouldLinkOnlyAbsoluteHttpUrls()
+    {
+        await _page!.GotoAsync(_fixture.BaseUrl);
+
+        var unsafeUrls = await _page.EvaluateAsync<string[]>(@"() => {
+            const safeUrls = ['https://example.test/?a=1&b=2', 'http://example.test/path'];
+            const unsafeUrls = [
+                'javascript:alert(1)',
+                'data:text/html,<script>alert(1)</script>',
+                '//example.test/path',
+                '/relative/path',
+                'mailto:research@example.test',
+                'https:example.test'
+            ];
+            [...safeUrls, ...unsafeUrls].forEach((url, index) =>
+                handleStreamEvent({
+                    type: 'source',
+                    data: {
+                        title: index === 2 ? '<img src=x onerror=alert(1)>' : 'Source',
+                        url,
+                        snippet: index === 2 ? '<script>alert(1)</script>' : 'Excerpt'
+                    }
+                }, true)
+            );
+            return unsafeUrls;
+        }");
+
+        var sources = _page.Locator(".source-item");
+        (await sources.CountAsync()).Should().Be(unsafeUrls.Length + 2);
+        for (var i = 0; i < 2; i++)
+        {
+            var link = sources.Nth(i).Locator("a.source-url");
+            (await link.GetAttributeAsync("href")).Should().StartWith(i == 0 ? "https://" : "http://");
+            (await link.GetAttributeAsync("target")).Should().Be("_blank");
+            (await link.GetAttributeAsync("rel")).Should().Be("noopener noreferrer");
+        }
+        (await sources.First.Locator(".source-url").TextContentAsync())
+            .Should().Be("https://example.test/?a=1&b=2");
+        for (var i = 0; i < unsafeUrls.Length; i++)
+        {
+            var source = sources.Nth(i + 2);
+            (await source.Locator("a").CountAsync()).Should().Be(0);
+            (await source.Locator("span.source-url").TextContentAsync()).Should().Be(unsafeUrls[i]);
+        }
+        (await sources.Locator("script, img").CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task StreamedUpdates_ShouldLeaveScrolledUpReaderAloneAndFollowAgainAtBottom()
+    {
+        await _page!.GotoAsync(_fixture.BaseUrl);
+
+        var positions = await _page.EvaluateAsync<int[]>(@"async () => {
+            const chat = document.getElementById('chatContainer');
+            const spacer = document.createElement('div');
+            spacer.style.height = '1800px';
+            chat.appendChild(spacer);
+            chat.scrollTop = chat.scrollHeight;
+            chat.dispatchEvent(new Event('scroll'));
+            chat.scrollTop = 0;
+            chat.dispatchEvent(new Event('scroll'));
+            handleStreamEvent({ type: 'progress', data: { message: 'Searching' } }, true);
+            handleStreamEvent({ type: 'plan', data: { goal: 'Review', subtasks: ['Check'] } }, true);
+            handleStreamEvent({ token: '**Findings**' }, true);
+            stopSmoothRendering();
+            handleStreamEvent({
+                type: 'reflection',
+                data: { confidenceScore: 0.8, iterations: 1, reasoning: 'Complete' }
+            }, true);
+            handleStreamEvent({
+                type: 'clarification',
+                data: { rationale: 'Need scope', questions: ['Which market?'] }
+            }, true);
+            await new Promise(resolve => setTimeout(resolve, 160));
+            const stayedAt = chat.scrollTop;
+            chat.scrollTop = chat.scrollHeight;
+            chat.dispatchEvent(new Event('scroll'));
+            handleStreamEvent({ token: ' More findings' }, true);
+            stopSmoothRendering();
+            return [stayedAt, chat.scrollHeight - chat.clientHeight - chat.scrollTop];
+        }");
+
+        positions[0].Should().Be(0);
+        positions[1].Should().BeLessOrEqualTo(8);
+    }
+
+    [Fact]
+    public async Task StreamEndAndFreshSearch_ShouldFlushOrDiscardPendingTokens()
+    {
+        await _page!.GotoAsync(_fixture.BaseUrl);
+
+        var messages = await _page.EvaluateAsync<string[]>(@"async () => {
+            const encoder = new TextEncoder();
+            const stream = new ReadableStream({
+                start(controller) {
+                    controller.enqueue(encoder.encode('data: {""token"":""first response""}\n\n'));
+                    controller.enqueue(encoder.encode('data: {""type"":""done""}\n\n'));
+                    controller.close();
+                }
+            });
+            await consumeServerSentEvents(stream, data => handleStreamEvent(data, true));
+            stopSmoothRendering();
+            const completed = currentSynthesisDiv.textContent;
+            handleStreamEvent({ token: ' should be discarded' }, true);
+            clearChatAndStartFresh();
+            handleStreamEvent({ token: 'second response' }, true);
+            stopSmoothRendering();
+            return [completed, ...document.querySelectorAll('.synthesis-divider + div')].map(
+                node => (typeof node === 'string' ? node : node.textContent).trim()
+            );
+        }");
+
+        messages.Should().Equal("first response", "second response");
+    }
+
+    [Fact]
+    public async Task Retry_ShouldStartFreshSynthesisAfterStreamFailure()
+    {
+        var requests = 0;
+        await _page!.RouteAsync("**/api/chat", async route =>
+        {
+            requests++;
+            var body = requests == 1
+                ? "data: {\"token\":\"partial draft\"}\n\ndata: {\"type\":\"error\",\"token\":\"Failed\"}\n\n"
+                : "data: {\"token\":\"**recovered** response\"}\n\ndata: {\"type\":\"done\"}\n\n";
+            await route.FulfillAsync(new()
+            {
+                Status = 200,
+                ContentType = "text/event-stream",
+                Body = body
+            });
+        });
+        await _page.GotoAsync(_fixture.BaseUrl);
+        await _page.FillAsync("#messageInput", "Test retry");
+        await _page.ClickAsync("#sendBtn");
+        await _page.Locator("#retryBtn").WaitForAsync(new() { State = WaitForSelectorState.Visible });
+
+        (await _page.Locator(".synthesis-divider + div").First.TextContentAsync())
+            .Should().Contain("partial draft");
+        await _page.WaitForFunctionAsync(
+            "() => document.querySelector('#chatContainer').getAttribute('aria-busy') === 'false'");
+        await _page.ClickAsync("#retryBtn");
+        await _page.Locator(".synthesis-divider + div").Nth(1).WaitForAsync();
+
+        (await _page.Locator(".synthesis-divider + div").Nth(1).TextContentAsync())
+            .Should().Contain("recovered response").And.NotContain("partial draft");
+        (await _page.Locator(".synthesis-divider + div").Nth(1).Locator("strong").TextContentAsync())
+            .Should().Be("recovered");
+        requests.Should().Be(2);
+    }
+
+    [Fact]
     public async Task Cancel_ShouldRestoreComposerAndShowStatus()
     {
         await _page!.GotoAsync(_fixture.BaseUrl);
@@ -230,6 +419,36 @@ public class UserInteractionTests : IAsyncLifetime
         (await _page.Locator("#statusText").TextContentAsync()).Should().Contain("cancelled");
         (await _page.Locator("#cancelBtn").IsVisibleAsync()).Should().BeFalse();
         (await _page.Locator("#sendBtn").IsDisabledAsync()).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Cancel_ShouldKeepTokensAlreadyReceived()
+    {
+        await _page!.GotoAsync(_fixture.BaseUrl);
+        await _page.EvaluateAsync(@"() => {
+            window.fetch = (_, options) => {
+                const stream = new ReadableStream({
+                    start(controller) {
+                        controller.enqueue(new TextEncoder().encode('data: {""token"":""partial answer""}\n\n'));
+                        options.signal.addEventListener('abort', () =>
+                            controller.error(new DOMException('Cancelled', 'AbortError')));
+                    }
+                });
+                return Promise.resolve(new Response(stream, {
+                    headers: { 'Content-Type': 'text/event-stream' }
+                }));
+            };
+        }");
+        await _page.FillAsync("#messageInput", "Long-running research");
+        await _page.ClickAsync("#sendBtn");
+        await _page.Locator(".synthesis-divider").WaitForAsync();
+        await _page.ClickAsync("#cancelBtn");
+        await _page.WaitForFunctionAsync(
+            "() => document.querySelector('#chatContainer').getAttribute('aria-busy') === 'false'");
+
+        (await _page.Locator(".synthesis-divider + div").TextContentAsync())
+            .Should().Contain("partial answer");
+        (await _page.Locator("#statusText").TextContentAsync()).Should().Contain("cancelled");
     }
 
     [Fact]

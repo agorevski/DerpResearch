@@ -4,10 +4,10 @@ using System.Text.Json.Serialization;
 namespace DeepResearch.WebApp.Models;
 
 public record ChatRequest(
-    [property: Required, MaxLength(10000)] string Prompt,
+    [Required, MaxLength(10000)] string Prompt,
     string Mode = "deep-research",
     string? ConversationId = null,
-    [property: Range(0, 100)] int DerpificationLevel = 100,
+    [Range(0, 100)] int DerpificationLevel = 100,
     string[]? ClarificationAnswers = null
 );
 

@@ -14,9 +14,10 @@ public class MemoryService : IMemoryService
     private readonly ILLMService _llmService;
     private readonly ILogger<MemoryService> _logger;
     private readonly int _topK;
+    private readonly int _embeddingDimension;
+    private readonly string _databasePath;
 
     // Magic number constants
-    private const int EmbeddingDimension = 3072;
     private const int DefaultMaxTokensPerChunk = 3000;
     private const int DefaultOverlapTokens = 100;
     private const int DefaultRecentMemoriesLimit = 5;
@@ -28,7 +29,13 @@ public class MemoryService : IMemoryService
         ILoggerFactory loggerFactory)
     {
         var config = memoryConfig.Value;
+        if (config.EmbeddingDimension <= 0)
+        {
+            throw new InvalidOperationException("Memory:EmbeddingDimension must be positive.");
+        }
         var dbPath = config.DatabasePath;
+        _databasePath = dbPath;
+        _embeddingDimension = config.EmbeddingDimension;
         _logger = logger;
         _logger.LogInformation("Initializing MemoryService with database path: {DbPath}", dbPath);
         
@@ -36,7 +43,7 @@ public class MemoryService : IMemoryService
         _dbInitializer = new DatabaseInitializer(dbPath, dbLogger);
         
         var indexLogger = loggerFactory.CreateLogger<PersistentFaissIndex>();
-        _faissIndex = new PersistentFaissIndex(dimension: EmbeddingDimension, logger: indexLogger);
+        _faissIndex = new PersistentFaissIndex(dimension: config.EmbeddingDimension, logger: indexLogger);
         _llmService = llmService;
         _topK = config.TopKResults;
         
@@ -57,8 +64,35 @@ public class MemoryService : IMemoryService
             // Load existing vectors from database
             await using var connection = _dbInitializer.CreateConnection();
             await connection.OpenAsync(cancellationToken);
+            using var dimensionCommand = connection.CreateCommand();
+            dimensionCommand.CommandText = @"
+                SELECT Dimension, length(Embedding)
+                FROM VectorStore
+                WHERE Dimension <> $dimension OR length(Embedding) <> $bytes
+                LIMIT 1
+            ";
+            dimensionCommand.Parameters.AddWithValue("$dimension", _embeddingDimension);
+            dimensionCommand.Parameters.AddWithValue("$bytes", (long)_embeddingDimension * sizeof(float));
+            await using (var reader = await dimensionCommand.ExecuteReaderAsync(cancellationToken))
+            {
+                if (await reader.ReadAsync(cancellationToken))
+                {
+                    throw new InvalidOperationException(
+                        $"Memory database '{_databasePath}' contains a vector with dimension {reader.GetInt32(0)} " +
+                        $"and embedding size {reader.GetInt64(1)} bytes, incompatible with " +
+                        $"Memory:EmbeddingDimension={_embeddingDimension} ({(long)_embeddingDimension * sizeof(float)} bytes). " +
+                        "Set Memory:DatabasePath to a new database for this embedding model, or back up and " +
+                        "re-embed/migrate existing memories before changing dimensions.");
+                }
+            }
+            cancellationToken.ThrowIfCancellationRequested();
             await _faissIndex.LoadFromDatabaseAsync(connection);
+            cancellationToken.ThrowIfCancellationRequested();
             _logger.LogInformation("Vector index loaded successfully with {Count} vectors", _faissIndex.Count);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -132,6 +166,10 @@ public class MemoryService : IMemoryService
                 _logger.LogDebug("Stored memory chunk {ChunkId} ({Index}/{Total}) with vector {VectorId}", 
                     chunkId, i + 1, chunks.Length, vectorId);
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 result.FailedChunks++;
@@ -172,7 +210,7 @@ public class MemoryService : IMemoryService
         }
 
         var queryEmbedding = await _llmService.GetEmbedding(query, cancellationToken);
-        var (vectorIds, similarities) = await _faissIndex.SearchAsync(queryEmbedding, topK);
+        var (vectorIds, similarities) = await _faissIndex.SearchAsync(queryEmbedding, topK, cancellationToken);
 
         await using var connection = _dbInitializer.CreateConnection();
         await connection.OpenAsync(cancellationToken);

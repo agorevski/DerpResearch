@@ -23,12 +23,13 @@ A multi-agent ASP.NET Core application that replicates ChatGPT's Deep Research w
 ### Prerequisites
 
 - .NET 9.0 SDK
-- Azure OpenAI with deployments: `gpt-4o`, `gpt-4o-mini`, `text-embedding-3-large`
+- Azure OpenAI (default), or an OpenAI-compatible chat API and an embeddings API
 - Google Custom Search API (for web search functionality)
 
 ### Installation
 
-**Configure Azure OpenAI** - Edit `appsettings.json`:
+**Configure Azure OpenAI (default)** - Copy `src/DerpResearch.WebApp/appsettings.example.json`
+to `src/DerpResearch.WebApp/appsettings.json` and provide your credentials:
 
   ```json
   {
@@ -52,22 +53,60 @@ A multi-agent ASP.NET Core application that replicates ChatGPT's Deep Research w
 
   ```bash
   dotnet restore
-  dotnet run
+  dotnet run --project src/DerpResearch.WebApp
   ```
 
-**Open browser**: `https://localhost:5001`
+**Open browser**: `http://localhost:5011` (the default HTTP launch profile)
 
 ### Testing Without API Keys
 
 Enable mock mode for testing without Azure OpenAI:
 
 ```bash
-# PowerShell
-$env:UseMockServices="true"
-dotnet run
+UseMockServices=true dotnet run --project src/DerpResearch.WebApp
 ```
 
 See [docs/MOCK_SERVICES.md](docs/MOCK_SERVICES.md) for details.
+
+### OpenRouter / OpenAI-compatible API
+
+Set `LLM:Provider` to `OpenRouter` or `OpenAICompatible` (the latter also works
+with any API implementing `/chat/completions` and `/embeddings`). Azure OpenAI
+remains the default when `LLM:Provider` is absent. The base URL is the **API
+root**, not a complete endpoint; `/api/v1` is preserved when appending paths.
+Configure separate main and mini model IDs; the application maps its internal
+`gpt-4o` and `gpt-4o-mini` requests to these IDs. Explicit slash-qualified
+model IDs passed by callers are forwarded unchanged.
+
+For example, from the repository root (with real keys already in environment
+variables, not in tracked files):
+
+```bash
+cp src/DerpResearch.WebApp/appsettings.example.json src/DerpResearch.WebApp/appsettings.json
+export LLM__Provider=OpenRouter
+export OpenAICompatible__BaseUrl=https://openrouter.ai/api/v1
+export OpenAICompatible__ApiKey="$OPENROUTER_API_KEY"
+export OpenAICompatible__Models__Chat=openai/gpt-4o
+export OpenAICompatible__Models__ChatMini=openai/gpt-4o-mini
+export OpenAICompatible__Models__Embedding=openai/text-embedding-3-small
+export Memory__EmbeddingDimension=1536
+dotnet run --project src/DerpResearch.WebApp
+```
+
+An embeddings API is **required for semantic memory and deep research**;
+OpenRouter provides `/api/v1/embeddings` with the same OpenRouter API key;
+its `openai/text-embedding-3-small` model produces 1536-dimensional vectors
+([OpenRouter embeddings documentation](https://openrouter.ai/docs/api-reference/embeddings)).
+`Models:Embedding` is required. For a chat provider without embeddings, set
+`OpenAICompatible__Embeddings__BaseUrl` to an embeddings API root and
+`OpenAICompatible__Embeddings__ApiKey` if that endpoint uses a different key.
+Set `Memory__EmbeddingDimension` to the selected model's vector size. Startup
+rejects an existing database containing vectors of another dimension; use a
+new `Memory__DatabasePath` or back up and re-embed/migrate existing memories
+before switching dimensions. Google Custom Search credentials are additionally
+required for live web research. Empty, malformed, or unknown selected-provider
+settings cause startup to fail; mock mode skips provider validation and needs
+no LLM keys.
 
 ## 🏗️ Architecture
 
@@ -142,7 +181,8 @@ Direct conversation without web research.
 {
   "Memory": {
     "DatabasePath": "Data/deepresearch.db",
-    "TopKResults": 5
+    "TopKResults": 5,
+    "EmbeddingDimension": 3072
   }
 }
 ```
@@ -232,8 +272,7 @@ dotnet build
 ### Mock Mode for Development
 
 ```bash
-$env:UseMockServices="true"
-dotnet run
+UseMockServices=true dotnet run --project src/DerpResearch.WebApp
 ```
 
 ### Code Coverage
@@ -259,7 +298,9 @@ This project maintains documentation of identified anti-patterns and their solut
 
 ### Change LLM Provider
 
-Modify `Services/LLMService.cs` to support OpenAI, Anthropic, Ollama, etc.
+Set `LLM:Provider` and the corresponding provider settings above. To add a
+different protocol, implement `ILLMProvider` and register it in
+`LLMProviderRegistration`.
 
 ### Enhance Search
 

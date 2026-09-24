@@ -455,7 +455,7 @@
             text-overflow: ellipsis;
         }
 
-        .source-url:hover {
+        a.source-url:hover {
             color: #667eea;
             text-decoration: underline;
         }
@@ -1322,14 +1322,16 @@
         let currentSourcesDiv = null;
         let currentSynthesisDiv = null;
 
-        // Token buffering for smooth rendering
-        let tokenBuffer = [];
-        let isRendering = false;
-        let renderingIntervalId = null;
-        const CHARS_PER_INTERVAL = 1;
-        const RENDER_INTERVAL_MS = 5;
-        const MARKDOWN_REFRESH_CHARS = 20; // Re-render markdown every N characters
-        let charsSinceLastMarkdownRender = 0;
+        let synthesisText = '';
+        let renderingTimeoutId = null;
+        let hasPendingSynthesisRender = false;
+        const RENDER_INTERVAL_MS = 50;
+        const markdownTags = new Set([
+            'P', 'BR', 'HR', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+            'BLOCKQUOTE', 'PRE', 'CODE', 'STRONG', 'EM', 'DEL', 'S',
+            'UL', 'OL', 'LI', 'A', 'IMG', 'TABLE', 'THEAD', 'TBODY',
+            'TR', 'TH', 'TD'
+        ]);
 
         const chatContainer = document.getElementById('chatContainer');
         const messageForm = document.getElementById('messageForm');
@@ -1418,8 +1420,8 @@
             currentQueriesDiv = null;
             currentSourcesDiv = null;
             currentSynthesisDiv = null;
-            tokenBuffer = [];
-            charsSinceLastMarkdownRender = 0;
+            synthesisText = '';
+            hasPendingSynthesisRender = false;
         }
 
         messageForm.addEventListener('submit', (event) => {
@@ -1509,9 +1511,11 @@
                 }
 
                 await consumeServerSentEvents(response.body, (data) => {
+                    if (controller.signal.aborted) return false;
                     return handleStreamEvent(data, requestOptions.allowClarification);
                 });
 
+                if (controller.signal.aborted) throw new DOMException('Research cancelled', 'AbortError');
                 setStatus();
                 return true;
             } catch (error) {
@@ -1525,8 +1529,8 @@
                 }
                 return false;
             } finally {
-                stopSmoothRendering();
                 if (activeRequestController === controller) {
+                    stopSmoothRendering();
                     activeRequestController = null;
                     setProcessingState(false);
                     messageInput.focus();
@@ -1661,9 +1665,11 @@
                 submitClarificationAnswers(clarDiv);
             });
 
-            // Scroll to bring the clarification section into view (showing the top)
+            // Bring questions into view only if the user is following the stream.
             setTimeout(() => {
-                clarDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                if (!userIsScrolling && clarDiv.isConnected) {
+                    clarDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
             }, 100);
         }
 
@@ -1731,18 +1737,13 @@
             const planDiv = document.createElement('div');
             planDiv.className = 'research-plan';
             planDiv.innerHTML = `
-                <h4>📋 Research Plan: ${data.goal}</h4>
+                <h4>📋 Research Plan: ${escapeHtml(data.goal)}</h4>
                 <ul>
-                    ${data.subtasks.map(task => `<li>${task}</li>`).join('')}
+                    ${data.subtasks.map(task => `<li>${escapeHtml(task)}</li>`).join('')}
                 </ul>
             `;
             researchDiv.appendChild(planDiv);
             currentPlanDiv = planDiv;
-            
-            // Scroll to show the plan
-            setTimeout(() => {
-                planDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 100);
         }
 
         function handleSearchQuery(data) {
@@ -1773,11 +1774,39 @@
 
             const sourceDiv = document.createElement('div');
             sourceDiv.className = 'source-item';
-            sourceDiv.innerHTML = `
-                <div class="source-title">${escapeHtml(data.title)}</div>
-                <a href="${escapeHtml(data.url)}" target="_blank" class="source-url">${escapeHtml(data.url)}</a>
-                ${data.snippet ? `<div class="source-snippet">${escapeHtml(data.snippet)}</div>` : ''}
-            `;
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'source-title';
+            titleDiv.textContent = data.title;
+            sourceDiv.appendChild(titleDiv);
+
+            const urlText = String(data.url ?? '');
+            let safeUrl = null;
+            if (/^https?:\/\//i.test(urlText)) {
+                try {
+                    const parsed = new URL(urlText);
+                    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+                        safeUrl = parsed.href;
+                    }
+                } catch {
+                    // Invalid or non-HTTP(S) URLs are displayed without a link.
+                }
+            }
+            const urlDiv = document.createElement(safeUrl ? 'a' : 'span');
+            urlDiv.className = 'source-url';
+            urlDiv.textContent = urlText;
+            if (safeUrl) {
+                urlDiv.href = safeUrl;
+                urlDiv.target = '_blank';
+                urlDiv.rel = 'noopener noreferrer';
+            }
+            sourceDiv.appendChild(urlDiv);
+
+            if (data.snippet) {
+                const snippetDiv = document.createElement('div');
+                snippetDiv.className = 'source-snippet';
+                snippetDiv.textContent = data.snippet;
+                sourceDiv.appendChild(snippetDiv);
+            }
             currentSourcesDiv.appendChild(sourceDiv);
         }
 
@@ -1803,8 +1832,6 @@
             reflectionDiv.innerHTML = reflectionText;
             researchDiv.appendChild(reflectionDiv);
             
-            // Auto-scroll to show the reflection
-            chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
         function handleContentToken(token) {
@@ -1820,66 +1847,55 @@
                 researchDiv.appendChild(currentSynthesisDiv);
             }
 
-            // Add token to buffer for smooth rendering
-            tokenBuffer.push(...token.split(''));
-            
-            // Start rendering loop if not already running
-            if (!isRendering) {
-                startSmoothRendering();
+            synthesisText += token;
+            hasPendingSynthesisRender = true;
+            if (renderingTimeoutId === null) {
+                renderingTimeoutId = setTimeout(renderPendingSynthesis, RENDER_INTERVAL_MS);
             }
         }
 
-        function startSmoothRendering() {
-            if (isRendering) return;
-            
-            isRendering = true;
-            renderingIntervalId = setInterval(() => {
-                if (tokenBuffer.length === 0) {
-                    // Buffer is empty, but keep checking in case more tokens arrive
-                    return;
-                }
+        function renderPendingSynthesis() {
+            renderingTimeoutId = null;
+            if (!hasPendingSynthesisRender || !currentSynthesisDiv) return;
 
-                // Extract characters to render
-                const charsToRender = tokenBuffer.splice(0, CHARS_PER_INTERVAL).join('');
-                
-                // Append to current text
-                const currentText = currentSynthesisDiv.getAttribute('data-text') || '';
-                const newText = currentText + charsToRender;
-                currentSynthesisDiv.setAttribute('data-text', newText);
-                
-                charsSinceLastMarkdownRender += charsToRender.length;
-                
-                // Render markdown periodically or if buffer is getting low
-                if (charsSinceLastMarkdownRender >= MARKDOWN_REFRESH_CHARS || tokenBuffer.length < 10) {
-                    currentSynthesisDiv.innerHTML = marked.parse(newText);
-                    charsSinceLastMarkdownRender = 0;
-                    
-                    // Auto-scroll
-                    chatContainer.scrollTop = chatContainer.scrollHeight;
+            const template = document.createElement('template');
+            template.innerHTML = marked.parse(synthesisText);
+            for (const element of template.content.querySelectorAll('*')) {
+                if (!markdownTags.has(element.tagName)) {
+                    element.remove();
+                    continue;
                 }
-            }, RENDER_INTERVAL_MS);
+                for (const attribute of [...element.attributes]) {
+                    const isLink = element.tagName === 'A' && attribute.name === 'href';
+                    const isImage = element.tagName === 'IMG' && attribute.name === 'src';
+                    if ((element.tagName === 'IMG' && attribute.name === 'alt') ||
+                        ((element.tagName === 'A' || element.tagName === 'IMG') &&
+                            attribute.name === 'title')) continue;
+                    let safeUrl = false;
+                    if (isLink || isImage) {
+                        try {
+                            const protocol = new URL(attribute.value, window.location.href).protocol;
+                            safeUrl = protocol === 'http:' || protocol === 'https:' ||
+                                (isLink && protocol === 'mailto:');
+                        } catch {
+                            // Invalid links and image URLs are not rendered as navigable resources.
+                        }
+                    }
+                    if (!safeUrl) element.removeAttribute(attribute.name);
+                }
+            }
+            currentSynthesisDiv.replaceChildren(template.content);
+            hasPendingSynthesisRender = false;
+            smartAutoScroll();
         }
 
-        function stopSmoothRendering() {
-            if (renderingIntervalId) {
-                clearInterval(renderingIntervalId);
-                renderingIntervalId = null;
+        function stopSmoothRendering(discard = false) {
+            if (renderingTimeoutId !== null) {
+                clearTimeout(renderingTimeoutId);
             }
-            isRendering = false;
-            
-            // Flush any remaining characters
-            if (tokenBuffer.length > 0 && currentSynthesisDiv) {
-                const currentText = currentSynthesisDiv.getAttribute('data-text') || '';
-                const remainingText = tokenBuffer.join('');
-                const newText = currentText + remainingText;
-                currentSynthesisDiv.setAttribute('data-text', newText);
-                currentSynthesisDiv.innerHTML = marked.parse(newText);
-                tokenBuffer = [];
-                charsSinceLastMarkdownRender = 0;
-                
-                // Final auto-scroll
-                chatContainer.scrollTop = chatContainer.scrollHeight;
-            }
+            renderingTimeoutId = null;
+            if (!discard) renderPendingSynthesis();
+            hasPendingSynthesisRender = false;
         }
 
         function addMessage(text, role) {
@@ -1897,7 +1913,7 @@
             
             messageDiv.appendChild(contentDiv);
             chatContainer.appendChild(messageDiv);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+            smartAutoScroll();
             
             return messageDiv;
         }
@@ -1908,36 +1924,23 @@
             return div.innerHTML;
         }
 
-        // Smart auto-scroll: pause if user is manually scrolling
+        // Follow new content until the user scrolls up; resume when they return to the bottom.
         let userIsScrolling = false;
-        let scrollTimeout;
         let lastScrollPosition = 0;
 
         chatContainer.addEventListener('scroll', () => {
-            clearTimeout(scrollTimeout);
-            
             const currentScroll = chatContainer.scrollTop;
-            const maxScroll = chatContainer.scrollHeight - chatContainer.clientHeight;
-            
-            // User scrolled up manually
-            if (currentScroll < lastScrollPosition && currentScroll < maxScroll - 100) {
+            const maxScroll = Math.max(0, chatContainer.scrollHeight - chatContainer.clientHeight);
+
+            if (currentScroll < lastScrollPosition - 1) {
                 userIsScrolling = true;
-            } else if (currentScroll >= maxScroll - 10) {
-                // User scrolled back to bottom
+            }
+            if (maxScroll - currentScroll <= 8) {
                 userIsScrolling = false;
             }
-            
             lastScrollPosition = currentScroll;
-            
-            // Reset after 1 second of no scrolling
-            scrollTimeout = setTimeout(() => {
-                if (chatContainer.scrollTop >= maxScroll - 10) {
-                    userIsScrolling = false;
-                }
-            }, 1000);
         });
 
-        // Enhanced auto-scroll that respects user scrolling
         function smartAutoScroll() {
             if (!userIsScrolling) {
                 chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -2025,7 +2028,7 @@
                 controller.abort('fresh-search');
             }
 
-            stopSmoothRendering();
+            stopSmoothRendering(true);
             setProcessingState(false);
 
             // Clear all messages except the welcome message

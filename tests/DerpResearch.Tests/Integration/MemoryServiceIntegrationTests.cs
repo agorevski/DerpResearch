@@ -1,9 +1,14 @@
 using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Models;
+using DeepResearch.WebApp.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Moq;
 
 namespace DerpResearch.Tests.Integration;
 
@@ -23,6 +28,7 @@ public class MemoryServiceIntegrationTests : IClassFixture<WebApplicationFactory
     {
         _factory = factory.WithWebHostBuilder(builder =>
         {
+            builder.UseSetting("UseMockServices", "true");
             builder.ConfigureAppConfiguration((context, config) =>
             {
                 // Configure mock services for integration tests
@@ -154,4 +160,108 @@ public class MemoryServiceIntegrationTests : IClassFixture<WebApplicationFactory
         context.RecentMessages.Should().BeEmpty();
         context.RelevantMemories.Should().BeEmpty();
     }
+}
+
+public class MemoryServiceEmbeddingDimensionTests : IDisposable
+{
+    private readonly string _databasePath = Path.Combine("Data", $"memory-dimension-{Guid.NewGuid():N}.db");
+    private readonly ILoggerFactory _loggerFactory = LoggerFactory.Create(_ => { });
+    private readonly Mock<ILLMService> _llmService = new();
+
+    public MemoryServiceEmbeddingDimensionTests()
+    {
+        _llmService.Setup(service => service.GetEmbedding(
+                It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([1f, 0f, 0f]);
+    }
+
+    public void Dispose()
+    {
+        _loggerFactory.Dispose();
+        File.Delete(_databasePath);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_RejectsPersistedEmbeddingsWithAnotherDimension()
+    {
+        var original = CreateService(3);
+        await original.InitializeAsync();
+        (await original.StoreMemoryAsync("Saved before switching models", "test", []))
+            .IsFullySuccessful.Should().BeTrue();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => CreateService(2).InitializeAsync());
+
+        exception.Message.Should().Contain(_databasePath)
+            .And.Contain("dimension 3")
+            .And.Contain("Memory:EmbeddingDimension=2")
+            .And.Contain("Memory:DatabasePath")
+            .And.Contain("re-embed");
+
+        var restored = CreateService(3);
+        await restored.InitializeAsync();
+        (await restored.SearchMemoryAsync("Saved before switching models"))
+            .Should().ContainSingle().Which.Text.Should().Be("Saved before switching models");
+    }
+
+    [Fact]
+    public async Task InitializeAsync_RejectsEmbeddingSizeMismatchEvenIfMetadataMatches()
+    {
+        var original = CreateService(3);
+        await original.InitializeAsync();
+        (await original.StoreMemoryAsync("Saved vector", "test", []))
+            .IsFullySuccessful.Should().BeTrue();
+
+        await using (var connection = new SqliteConnection($"Data Source={_databasePath}"))
+        {
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE VectorStore SET Embedding = zeroblob(8)";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => CreateService(3).InitializeAsync());
+
+        exception.Message.Should().Contain("embedding size 8 bytes")
+            .And.Contain("Memory:EmbeddingDimension=3 (12 bytes)");
+    }
+
+    [Fact]
+    public async Task InitializeAsync_FreshDatabaseWithCustomDimensionRestoresAndAddsVectors()
+    {
+        var original = CreateService(3);
+        await original.InitializeAsync();
+        (await original.StoreMemoryAsync("First fact", "test", []))
+            .IsFullySuccessful.Should().BeTrue();
+
+        var restored = CreateService(3);
+        await restored.InitializeAsync();
+        (await restored.StoreMemoryAsync("Second fact", "test", []))
+            .IsFullySuccessful.Should().BeTrue();
+
+        (await restored.SearchMemoryAsync("fact", topK: 2))
+            .Select(memory => memory.Text).Should().BeEquivalentTo(["First fact", "Second fact"]);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_CanceledBeforeDatabaseCheckDoesNotCreateDatabase()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => CreateService(3).InitializeAsync(cancellation.Token));
+        File.Exists(_databasePath).Should().BeFalse();
+    }
+
+    private MemoryService CreateService(int dimension) =>
+        new(Options.Create(new MemoryConfiguration
+            {
+                DatabasePath = _databasePath,
+                EmbeddingDimension = dimension
+            }),
+            _llmService.Object,
+            _loggerFactory.CreateLogger<MemoryService>(),
+            _loggerFactory);
 }

@@ -46,6 +46,48 @@ public class MemoryConfiguration
     /// Number of top results to return in memory search.
     /// </summary>
     public int TopKResults { get; set; } = 5;
+
+    /// <summary>
+    /// Must match the output dimension of the configured embedding model.
+    /// </summary>
+    public int EmbeddingDimension { get; set; } = 3072;
+}
+
+public class LLMConfiguration
+{
+    public const string Section = "LLM";
+
+    public string Provider { get; set; } = "AzureOpenAI";
+}
+
+public class OpenAICompatibleConfiguration
+{
+    public const string Section = "OpenAICompatible";
+
+    /// <summary>
+    /// API root, e.g. https://openrouter.ai/api/v1 (not /chat/completions).
+    /// </summary>
+    public string BaseUrl { get; set; } = string.Empty;
+    public string ApiKey { get; set; } = string.Empty;
+    public OpenAICompatibleModels Models { get; set; } = new();
+    public OpenAICompatibleEmbeddings Embeddings { get; set; } = new();
+}
+
+public class OpenAICompatibleModels
+{
+    public string Chat { get; set; } = string.Empty;
+    public string ChatMini { get; set; } = string.Empty;
+    public string Embedding { get; set; } = string.Empty;
+}
+
+public class OpenAICompatibleEmbeddings
+{
+    /// <summary>
+    /// Optional separate OpenAI-compatible embeddings API root and key.
+    /// Both default to the chat API when omitted.
+    /// </summary>
+    public string BaseUrl { get; set; } = string.Empty;
+    public string ApiKey { get; set; } = string.Empty;
 }
 
 /// <summary>

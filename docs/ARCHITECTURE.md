@@ -211,15 +211,19 @@ User Query → MemoryService (context) → LLMService → Stream Response
 **Implementation:** `LLMService.cs`
 
 **Responsibilities:**
-- Azure OpenAI API integration
+- Azure OpenAI by default, or a selectable OpenAI-compatible/OpenRouter API
 - Token streaming with `IAsyncEnumerable<string>`
 - Structured output parsing (`GetStructuredOutput<T>`)
-- Embedding generation (text-embedding-3-large)
+- Embedding generation via the selected provider (or a separate compatible embeddings API)
 
-**Models:**
+**Default Azure models:**
 - **gpt-4o**: Primary reasoning model (agents, synthesis)
 - **gpt-4o-mini**: Lightweight model (reflection, cost optimization)
 - **text-embedding-3-large**: 3072-dimension embeddings
+
+The compatible provider maps the two internal chat model names to configured model
+IDs and uses its separately configured embedding model. The memory index dimension
+must match the embedding model's output.
 
 #### MemoryService
 **Interface:** `IMemoryService`

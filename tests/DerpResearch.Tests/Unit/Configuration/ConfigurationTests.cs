@@ -31,6 +31,7 @@ public class ConfigurationTests
         config.FaissIndexPath.Should().Be("Data/faiss.index");
         config.MaxMemoryAge.Should().Be(90);
         config.TopKResults.Should().Be(5);
+        config.EmbeddingDimension.Should().Be(3072);
     }
 
     [Fact]

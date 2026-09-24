@@ -39,7 +39,7 @@ public class AzureOpenAIProvider : ILLMProvider
         var endpoint = new Uri(_config.Endpoint);
         _client = new AzureOpenAIClient(endpoint, new AzureKeyCredential(_config.ApiKey));
 
-        _logger.LogInformation("AzureOpenAIProvider initialized with endpoint: {Endpoint}", _config.Endpoint);
+        _logger.LogInformation("AzureOpenAIProvider initialized");
     }
 
     public async IAsyncEnumerable<string> StreamCompletionAsync(

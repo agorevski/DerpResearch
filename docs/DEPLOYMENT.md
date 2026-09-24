@@ -42,6 +42,12 @@ The Dockerfile uses multi-stage build:
 
 ### 2. Test Locally (Recommended)
 
+Azure OpenAI is the default provider. For an OpenRouter-style deployment, set
+`LLM__Provider=OpenRouter` plus the `OpenAICompatible__*` chat/model settings,
+and provide a working embeddings API/model (with optional separate
+`OpenAICompatible__Embeddings__*` credentials). See the runnable environment
+variable example in [README.md](../README.md#openrouter--openai-compatible-api).
+
 ```bash
 docker run -d -p 8080:8080 \
   -e AzureOpenAI__Endpoint="https://YOUR-INSTANCE.openai.azure.com/" \
