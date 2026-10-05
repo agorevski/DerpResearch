@@ -123,12 +123,7 @@ public class WebContentFetcher : IWebContentFetcher
             text = text.Trim();
 
             // Limit length
-            if (text.Length > MaxContentLength)
-            {
-                text = text.Substring(0, MaxContentLength);
-            }
-
-            return text;
+            return TextHelper.Truncate(text, MaxContentLength);
         }
         catch (Exception ex)
         {
@@ -184,12 +179,7 @@ public class WebContentFetcher : IWebContentFetcher
         html = System.Net.WebUtility.HtmlDecode(html);
         html = Regex.Replace(html, @"\s+", " ");
         html = html.Trim();
-        
-        if (html.Length > MaxContentLength)
-        {
-            html = html.Substring(0, MaxContentLength);
-        }
-        
-        return html;
+
+        return TextHelper.Truncate(html, MaxContentLength);
     }
 }
