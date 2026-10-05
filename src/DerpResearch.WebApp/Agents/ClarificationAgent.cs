@@ -121,7 +121,7 @@ The questions should be open-ended and help narrow down the research scope.";
             summary += "Recent conversation:\n";
             foreach (var msg in context.RecentMessages.TakeLast(3))
             {
-                summary += $"- {msg.Role}: {msg.Content.Substring(0, Math.Min(100, msg.Content.Length))}...\n";
+                summary += $"- {msg.Role}: {TextHelper.Truncate(msg.Content, 100)}...\n";
             }
         }
 

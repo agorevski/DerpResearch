@@ -91,7 +91,7 @@ public class SynthesisAgent : ISynthesisAgent
             sb.AppendLine("Relevant Context from Previous Research:");
             foreach (var memory in relevantMemories)
             {
-                sb.AppendLine($"- {memory.Text.Substring(0, Math.Min(200, memory.Text.Length))}...");
+                sb.AppendLine($"- {TextHelper.Truncate(memory.Text, 200)}...");
                 sb.AppendLine($"  Source: {memory.Source}");
                 sb.AppendLine();
             }

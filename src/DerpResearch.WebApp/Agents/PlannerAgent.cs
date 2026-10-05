@@ -135,7 +135,7 @@ Return ONLY a valid JSON object matching this structure:
             summary += "Recent conversation:\n";
             foreach (var msg in context.RecentMessages.TakeLast(3))
             {
-                summary += $"- {msg.Role}: {msg.Content.Substring(0, Math.Min(100, msg.Content.Length))}...\n";
+                summary += $"- {msg.Role}: {TextHelper.Truncate(msg.Content, 100)}...\n";
             }
         }
 
@@ -144,7 +144,7 @@ Return ONLY a valid JSON object matching this structure:
             summary += "\nRelevant memories:\n";
             foreach (var mem in context.RelevantMemories.Take(3))
             {
-                summary += $"- {mem.Text.Substring(0, Math.Min(100, mem.Text.Length))}...\n";
+                summary += $"- {TextHelper.Truncate(mem.Text, 100)}...\n";
             }
         }
 
