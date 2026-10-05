@@ -27,6 +27,10 @@ public class OrchestratorService : IOrchestratorService
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
+    // Sentinel prefix used to smuggle the final GatheredInformation through the
+    // client-facing token stream without sending it to the client.
+    private const string FinalInfoPrefix = "FINAL_INFO:";
+
     public OrchestratorService(
         IPlannerAgent plannerAgent,
         ISearchAgent searchAgent,
@@ -107,9 +111,9 @@ public class OrchestratorService : IOrchestratorService
         await foreach (var update in ExecuteSearchWithProgressAsync(plan, conversationId, derpificationLevel, cancellationToken).WithCancellation(cancellationToken))
         {
             // Check if this is the final GatheredInformation marker
-            if (update.StartsWith("FINAL_INFO:"))
+            if (update.StartsWith(FinalInfoPrefix))
             {
-                var jsonData = update.Substring(11); // Remove "FINAL_INFO:" prefix
+                var jsonData = update.Substring(FinalInfoPrefix.Length);
                 info = JsonSerializer.Deserialize<GatheredInformation>(jsonData)!;
             }
             else
@@ -202,8 +206,7 @@ public class OrchestratorService : IOrchestratorService
 
         // Use SearchAgent which handles fetching webpage content and streams sources
         GatheredInformation? info = null;
-        bool hasError = false;
-        
+
         await foreach (var item in _searchAgent.ExecuteSearchPlanAsync(plan, derpificationLevel, cancellationToken).WithCancellation(cancellationToken))
         {
             // Check if this is a SearchResult or GatheredInformation
@@ -220,7 +223,7 @@ public class OrchestratorService : IOrchestratorService
         }
 
         // Ensure we have info
-        if (info == null || hasError)
+        if (info == null)
         {
             info = new GatheredInformation
             {
@@ -231,6 +234,6 @@ public class OrchestratorService : IOrchestratorService
         }
 
         // Yield the final result with a special prefix so it's not sent to the client
-        yield return "FINAL_INFO:" + JsonSerializer.Serialize(info);
+        yield return FinalInfoPrefix + JsonSerializer.Serialize(info);
     }
 }
