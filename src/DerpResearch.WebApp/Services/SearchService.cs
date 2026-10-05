@@ -138,9 +138,7 @@ public class SearchService : ISearchService
         
         var queryHash = ComputeHash(query);
 
-        var connectionString = $"Data Source={_dbPath}";
-        await using var connection = new SqliteConnection(connectionString);
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -176,9 +174,7 @@ public class SearchService : ISearchService
             var queryHash = ComputeHash(query);
             var resultsJson = JsonSerializer.Serialize(results);
 
-            var connectionString = $"Data Source={_dbPath}";
-            await using var connection = new SqliteConnection(connectionString);
-            await connection.OpenAsync(cancellationToken);
+            await using var connection = await OpenConnectionAsync(cancellationToken);
 
             var command = connection.CreateCommand();
             command.CommandText = @"
@@ -203,9 +199,7 @@ public class SearchService : ISearchService
         
         var threshold = DateTime.UtcNow.AddSeconds(-_cacheDuration);
 
-        var connectionString = $"Data Source={_dbPath}";
-        await using var connection = new SqliteConnection(connectionString);
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -216,6 +210,13 @@ public class SearchService : ISearchService
 
         var deleted = await command.ExecuteNonQueryAsync(cancellationToken);
         _logger.LogInformation("Cleared {Count} expired cache entries", deleted);
+    }
+
+    private async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
+    {
+        var connection = new SqliteConnection($"Data Source={_dbPath}");
+        await connection.OpenAsync(cancellationToken);
+        return connection;
     }
 
     private string ComputeHash(string input)
