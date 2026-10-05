@@ -7,6 +7,10 @@ public class CircuitBreaker
 {
     private enum CircuitState { Closed, Open, HalfOpen }
 
+    public const int DefaultFailureThreshold = 5;
+    public const int DefaultBreakDurationSeconds = 30;
+    public static readonly TimeSpan DefaultBreakDuration = TimeSpan.FromSeconds(DefaultBreakDurationSeconds);
+
     private CircuitState _state = CircuitState.Closed;
     private int _failureCount = 0;
     private DateTime _lastFailureTime = DateTime.MinValue;

@@ -27,8 +27,8 @@ public class ResilientSearchService : ISearchService
         _rateLimiter = new SemaphoreSlim(maxConcurrentRequests);
         _minimumInterval = TimeSpan.FromSeconds(1.0 / requestsPerSecond);
         _circuitBreaker = new CircuitBreaker(
-            failureThreshold: 5,
-            breakDuration: TimeSpan.FromSeconds(30),
+            failureThreshold: CircuitBreaker.DefaultFailureThreshold,
+            breakDuration: CircuitBreaker.DefaultBreakDuration,
             logger);
     }
 

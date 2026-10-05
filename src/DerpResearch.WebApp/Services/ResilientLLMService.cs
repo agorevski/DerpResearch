@@ -19,8 +19,8 @@ public class ResilientLLMService : ILLMService
     public ResilientLLMService(
         ILLMService innerService,
         ILogger<ResilientLLMService> logger,
-        int failureThreshold = 5,
-        int breakDurationSeconds = 30,
+        int failureThreshold = CircuitBreaker.DefaultFailureThreshold,
+        int breakDurationSeconds = CircuitBreaker.DefaultBreakDurationSeconds,
         int timeoutSeconds = 120,
         int maxRetryAttempts = 3)
     {

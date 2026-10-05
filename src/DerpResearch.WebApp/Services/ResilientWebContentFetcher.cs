@@ -21,8 +21,8 @@ public class ResilientWebContentFetcher : IWebContentFetcher
         _logger = logger;
         _timeoutSeconds = timeoutSeconds;
         _circuitBreaker = new CircuitBreaker(
-            failureThreshold: 5,
-            breakDuration: TimeSpan.FromSeconds(30),
+            failureThreshold: CircuitBreaker.DefaultFailureThreshold,
+            breakDuration: CircuitBreaker.DefaultBreakDuration,
             logger);
     }
 
