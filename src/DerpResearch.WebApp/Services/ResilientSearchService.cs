@@ -81,11 +81,11 @@ public class ResilientSearchService : ISearchService
                         lastException = ex;
                         if (attempt < maxRetries)
                         {
-                            var delaySeconds = Math.Pow(2, attempt);
+                            var delay = RetryHelper.GetBackoffDelay(attempt);
                             _logger.LogWarning(ex,
                                 "Search attempt {Attempt}/{Max} failed for query: {Query}. Retrying after {Delay}s",
-                                attempt, maxRetries, query, delaySeconds);
-                            await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+                                attempt, maxRetries, query, delay.TotalSeconds);
+                            await Task.Delay(delay, cancellationToken);
                         }
                         else
                         {

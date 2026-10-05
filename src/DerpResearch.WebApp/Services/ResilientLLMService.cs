@@ -64,11 +64,11 @@ public class ResilientLLMService : ILLMService
             catch (Exception ex) when (attempt < _maxRetryAttempts)
             {
                 streamException = ex;
-                var delaySeconds = Math.Pow(2, attempt);
+                var delay = RetryHelper.GetBackoffDelay(attempt);
                 _logger.LogWarning(ex,
                     "LLM streaming attempt {Attempt}/{Max} failed. Retrying after {Delay}s",
-                    attempt, _maxRetryAttempts, delaySeconds);
-                await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+                    attempt, _maxRetryAttempts, delay.TotalSeconds);
+                await Task.Delay(delay, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -177,11 +177,11 @@ public class ResilientLLMService : ILLMService
                 lastException = ex;
                 if (attempt < _maxRetryAttempts)
                 {
-                    var delaySeconds = Math.Pow(2, attempt);
+                    var delay = RetryHelper.GetBackoffDelay(attempt);
                     _logger.LogWarning(ex,
                         "LLM completion attempt {Attempt}/{Max} failed. Retrying after {Delay}s",
-                        attempt, _maxRetryAttempts, delaySeconds);
-                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+                        attempt, _maxRetryAttempts, delay.TotalSeconds);
+                    await Task.Delay(delay, cancellationToken);
                 }
             }
         }
@@ -223,11 +223,11 @@ public class ResilientLLMService : ILLMService
                 lastException = ex;
                 if (attempt < _maxRetryAttempts)
                 {
-                    var delaySeconds = Math.Pow(2, attempt);
+                    var delay = RetryHelper.GetBackoffDelay(attempt);
                     _logger.LogWarning(ex,
                         "LLM embedding attempt {Attempt}/{Max} failed. Retrying after {Delay}s",
-                        attempt, _maxRetryAttempts, delaySeconds);
-                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+                        attempt, _maxRetryAttempts, delay.TotalSeconds);
+                    await Task.Delay(delay, cancellationToken);
                 }
             }
         }
@@ -272,11 +272,11 @@ public class ResilientLLMService : ILLMService
                 lastException = ex;
                 if (attempt < _maxRetryAttempts)
                 {
-                    var delaySeconds = Math.Pow(2, attempt);
+                    var delay = RetryHelper.GetBackoffDelay(attempt);
                     _logger.LogWarning(ex,
                         "LLM structured output attempt {Attempt}/{Max} failed. Retrying after {Delay}s",
-                        attempt, _maxRetryAttempts, delaySeconds);
-                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+                        attempt, _maxRetryAttempts, delay.TotalSeconds);
+                    await Task.Delay(delay, cancellationToken);
                 }
             }
         }
