@@ -158,7 +158,7 @@ public class WebContentFetcher : IWebContentFetcher
         if (node.NodeType == HtmlNodeType.Element)
         {
             var blockElements = new[] { "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "br", "tr" };
-            bool isBlockElement = blockElements.Contains(node.Name.ToLower());
+            bool isBlockElement = blockElements.Contains(node.Name.ToLowerInvariant());
 
             // Process child nodes
             foreach (var child in node.ChildNodes)

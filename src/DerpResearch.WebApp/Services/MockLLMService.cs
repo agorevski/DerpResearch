@@ -121,7 +121,7 @@ public class MockLLMService : ILLMService
     private string GenerateMockResponse(string userMessage, string deploymentName)
     {
         // Generate contextual response based on keywords
-        var lowerMessage = userMessage.ToLower();
+        var lowerMessage = userMessage.ToLowerInvariant();
 
         if (lowerMessage.Contains("compare") || lowerMessage.Contains("difference"))
         {

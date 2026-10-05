@@ -98,7 +98,7 @@ public class AzureOpenAIProvider : ILLMProvider
     private string ResolveDeployment(string modelName)
     {
         // Map known model names to deployments
-        return modelName.ToLower() switch
+        return modelName.ToLowerInvariant() switch
         {
             "gpt-4o" => _config.Deployments.Chat,
             "gpt-4o-mini" => _config.Deployments.ChatMini,
@@ -109,7 +109,7 @@ public class AzureOpenAIProvider : ILLMProvider
     private static List<OpenAI.Chat.ChatMessage> ConvertMessages(ChatMessage[] messages)
     {
         return messages.Select(m =>
-            m.Role.ToLower() switch
+            m.Role.ToLowerInvariant() switch
             {
                 "system" => new SystemChatMessage(m.Content) as OpenAI.Chat.ChatMessage,
                 "user" => new UserChatMessage(m.Content) as OpenAI.Chat.ChatMessage,
