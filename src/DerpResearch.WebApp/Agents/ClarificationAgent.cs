@@ -65,8 +65,7 @@ The questions should be open-ended and help narrow down the research scope.";
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to generate clarifying questions");
-            _logger.LogError("Attempted to use deployment: gpt-4o for clarification questions");
+            _logger.LogError(ex, "Failed to generate clarifying questions using deployment: {Deployment}", _aiConfig.Deployments.Chat);
         }
 
         // Fallback: Generate simple heuristic questions based on derpification level
