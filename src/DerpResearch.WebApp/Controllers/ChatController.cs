@@ -89,7 +89,7 @@ public class ChatController : ControllerBase
         {
             _logger.LogError(ex, "Error processing chat request");
             
-            var errorData = new StreamToken($"Error: {ex.Message}", conversationId, "error");
+            var errorData = new StreamToken("An error occurred while processing your request.", conversationId, "error");
             var errorJson = JsonSerializer.Serialize(errorData, _jsonOptions);
             await Response.WriteAsync($"data: {errorJson}\n\n");
             await Response.Body.FlushAsync();
@@ -111,7 +111,7 @@ public class ChatController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving conversation history");
-            return StatusCode(500, new { error = ex.Message });
+            return StatusCode(500, new { error = "An error occurred while processing your request." });
         }
     }
 
@@ -126,7 +126,7 @@ public class ChatController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating conversation");
-            return StatusCode(500, new { error = ex.Message });
+            return StatusCode(500, new { error = "An error occurred while processing your request." });
         }
     }
 }

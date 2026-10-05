@@ -198,7 +198,7 @@ public class ChatControllerTests
             ((MemoryStream)_controller.Response.Body).ToArray());
         
         responseBody.Should().Contain("\"type\":\"error\"");
-        responseBody.Should().Contain(errorMessage);
+        responseBody.Should().NotContain(errorMessage);
     }
 
     [Fact]
