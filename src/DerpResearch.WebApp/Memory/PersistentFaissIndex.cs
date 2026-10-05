@@ -171,7 +171,7 @@ public class PersistentFaissIndex
                 foreach (var kvp in _vectors)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var similarity = CosineSimilarity(queryEmbedding, kvp.Value);
+                    var similarity = VectorMath.CosineSimilarity(queryEmbedding, kvp.Value);
                     similarities.Add((kvp.Key, similarity));
                 }
             }
@@ -186,30 +186,6 @@ public class PersistentFaissIndex
 
             return (ids, distances);
         }, cancellationToken);
-    }
-
-    /// <summary>
-    /// Calculate cosine similarity between two vectors
-    /// </summary>
-    private float CosineSimilarity(float[] a, float[] b)
-    {
-        double dotProduct = 0;
-        double magnitudeA = 0;
-        double magnitudeB = 0;
-
-        for (int i = 0; i < a.Length; i++)
-        {
-            dotProduct += a[i] * b[i];
-            magnitudeA += a[i] * a[i];
-            magnitudeB += b[i] * b[i];
-        }
-
-        if (magnitudeA == 0 || magnitudeB == 0)
-        {
-            return 0;
-        }
-
-        return (float)(dotProduct / (Math.Sqrt(magnitudeA) * Math.Sqrt(magnitudeB)));
     }
 
     /// <summary>
