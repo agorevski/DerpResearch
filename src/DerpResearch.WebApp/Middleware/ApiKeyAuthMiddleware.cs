@@ -1,5 +1,7 @@
 using DeepResearch.WebApp.Models;
 using Microsoft.Extensions.Options;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace DeepResearch.WebApp.Middleware;
 
@@ -37,7 +39,7 @@ public class ApiKeyAuthMiddleware
         }
 
         if (!context.Request.Headers.TryGetValue(ApiKeyHeaderName, out var providedKey) ||
-            !string.Equals(providedKey, config.ApiKey, StringComparison.Ordinal))
+            !KeysMatch(providedKey.ToString(), config.ApiKey))
         {
             _logger.LogWarning("Unauthorized API request to {Path}", path);
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -46,5 +48,12 @@ public class ApiKeyAuthMiddleware
         }
 
         await _next(context);
+    }
+
+    private static bool KeysMatch(string provided, string expected)
+    {
+        var providedBytes = Encoding.UTF8.GetBytes(provided);
+        var expectedBytes = Encoding.UTF8.GetBytes(expected);
+        return CryptographicOperations.FixedTimeEquals(providedBytes, expectedBytes);
     }
 }
