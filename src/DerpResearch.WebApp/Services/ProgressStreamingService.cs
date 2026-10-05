@@ -10,10 +10,7 @@ namespace DeepResearch.WebApp.Services;
 /// </summary>
 public class ProgressStreamingService : IProgressStreamingService
 {
-    private static readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    private static readonly JsonSerializerOptions _jsonOptions = JsonDefaults.CamelCase;
 
     public string CreateProgressToken(string conversationId, string stage, string message, object? details = null)
     {

@@ -14,10 +14,7 @@ public class ChatController : ControllerBase
     private readonly IOrchestratorService _orchestrator;
     private readonly IMemoryService _memoryService;
     private readonly ILogger<ChatController> _logger;
-    private static readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    private static readonly JsonSerializerOptions _jsonOptions = JsonDefaults.CamelCase;
 
     public ChatController(
         IOrchestratorService orchestrator,

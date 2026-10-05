@@ -22,10 +22,7 @@ public class OrchestratorService : IOrchestratorService
     private readonly ILogger<OrchestratorService> _logger;
     private readonly PerformanceMonitor? _performanceMonitor;
 
-    private static readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    private static readonly JsonSerializerOptions _jsonOptions = JsonDefaults.CamelCase;
 
     // Sentinel prefix used to smuggle the final GatheredInformation through the
     // client-facing token stream without sending it to the client.

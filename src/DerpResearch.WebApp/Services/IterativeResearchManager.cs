@@ -21,10 +21,7 @@ public class IterativeResearchManager : IIterativeResearchManager
     private readonly ReflectionConfiguration _reflectionConfig;
     private readonly ILogger<IterativeResearchManager> _logger;
 
-    private static readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    private static readonly JsonSerializerOptions _jsonOptions = JsonDefaults.CamelCase;
 
     public IterativeResearchManager(
         ISynthesisAgent synthesisAgent,
