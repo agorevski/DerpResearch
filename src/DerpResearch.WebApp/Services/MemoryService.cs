@@ -126,8 +126,7 @@ public class MemoryService : IMemoryService
             FailedChunks = 0
         };
 
-        await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
 
         // Store each chunk as a separate memory entry
         for (int i = 0; i < chunks.Length; i++)
@@ -212,8 +211,7 @@ public class MemoryService : IMemoryService
         var queryEmbedding = await _llmService.GetEmbedding(query, cancellationToken);
         var (vectorIds, similarities) = await _faissIndex.SearchAsync(queryEmbedding, topK, cancellationToken);
 
-        await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
 
         var memories = new List<MemoryChunk>();
 
@@ -255,8 +253,7 @@ public class MemoryService : IMemoryService
     {
         cancellationToken.ThrowIfCancellationRequested();
         
-        await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
 
         // Get recent messages
         var messagesCommand = connection.CreateCommand();
@@ -324,8 +321,7 @@ public class MemoryService : IMemoryService
     {
         cancellationToken.ThrowIfCancellationRequested();
         
-        await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -347,8 +343,7 @@ public class MemoryService : IMemoryService
         
         var conversationId = Guid.NewGuid().ToString();
 
-        await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -369,8 +364,7 @@ public class MemoryService : IMemoryService
     {
         cancellationToken.ThrowIfCancellationRequested();
         
-        await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -387,8 +381,7 @@ public class MemoryService : IMemoryService
     {
         cancellationToken.ThrowIfCancellationRequested();
         
-        await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -409,8 +402,7 @@ public class MemoryService : IMemoryService
     {
         cancellationToken.ThrowIfCancellationRequested();
         
-        await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -440,8 +432,7 @@ public class MemoryService : IMemoryService
     {
         cancellationToken.ThrowIfCancellationRequested();
         
-        await using var connection = _dbInitializer.CreateConnection();
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -451,7 +442,14 @@ public class MemoryService : IMemoryService
         command.Parameters.AddWithValue("$conversationId", conversationId);
 
         var deleted = await command.ExecuteNonQueryAsync(cancellationToken);
-        _logger.LogInformation("Cleared {Count} clarification question record(s) for conversation {ConversationId}", 
+        _logger.LogInformation("Cleared {Count} clarification question record(s) for conversation {ConversationId}",
             deleted, conversationId);
+    }
+
+    private async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
+    {
+        var connection = _dbInitializer.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        return connection;
     }
 }
