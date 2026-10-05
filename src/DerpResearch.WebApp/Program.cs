@@ -6,6 +6,7 @@ using DeepResearch.WebApp.Middleware;
 using DeepResearch.WebApp.Models;
 using DeepResearch.WebApp.Services;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -162,9 +163,16 @@ try
             startupLogger.LogInformation("  ✓ LLMService (with circuit breaker & retry)");
             builder.Services.AddSingleton<LLMService>();
             builder.Services.AddSingleton<ILLMService>(sp =>
-                new ResilientLLMService(
+            {
+                var resilience = sp.GetRequiredService<IOptions<ResilienceConfiguration>>().Value;
+                return new ResilientLLMService(
                     sp.GetRequiredService<LLMService>(),
-                    sp.GetRequiredService<ILogger<ResilientLLMService>>()));
+                    sp.GetRequiredService<ILogger<ResilientLLMService>>(),
+                    resilience.FailureThreshold,
+                    resilience.BreakDurationSeconds,
+                    resilience.LLMTimeoutSeconds,
+                    resilience.MaxRetryAttempts);
+            });
         }
         else
         {
@@ -185,9 +193,14 @@ try
             startupLogger.LogInformation("  ✓ SearchService (with circuit breaker & rate limiting)");
             builder.Services.AddSingleton<SearchService>();
             builder.Services.AddSingleton<ISearchService>(sp =>
-                new ResilientSearchService(
+            {
+                var resilience = sp.GetRequiredService<IOptions<ResilienceConfiguration>>().Value;
+                return new ResilientSearchService(
                     sp.GetRequiredService<SearchService>(),
-                    sp.GetRequiredService<ILogger<ResilientSearchService>>()));
+                    sp.GetRequiredService<ILogger<ResilientSearchService>>(),
+                    resilience.MaxConcurrentRequests,
+                    resilience.RequestsPerSecond);
+            });
         }
         else
         {
