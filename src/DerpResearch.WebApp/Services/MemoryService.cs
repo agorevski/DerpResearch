@@ -106,8 +106,7 @@ public class MemoryService : IMemoryService
         cancellationToken.ThrowIfCancellationRequested();
         
         // Split large texts into chunks to avoid embedding token limits
-        // Using conservative defaults: 3000 tokens max, 100 token overlap
-        var chunks = TextChunker.ChunkText(text, maxTokens: 3000, overlapTokens: 100);
+        var chunks = TextChunker.ChunkText(text, maxTokens: DefaultMaxTokensPerChunk, overlapTokens: DefaultOverlapTokens);
         
         if (chunks.Length == 0)
         {
@@ -289,9 +288,10 @@ public class MemoryService : IMemoryService
             FROM Memories
             WHERE ConversationId = $conversationId
             ORDER BY Timestamp DESC
-            LIMIT 5
+            LIMIT $limit
         ";
         memoriesCommand.Parameters.AddWithValue("$conversationId", conversationId);
+        memoriesCommand.Parameters.AddWithValue("$limit", DefaultRecentMemoriesLimit);
 
         var memories = new List<MemoryChunk>();
         await using var memReader = await memoriesCommand.ExecuteReaderAsync(cancellationToken);
