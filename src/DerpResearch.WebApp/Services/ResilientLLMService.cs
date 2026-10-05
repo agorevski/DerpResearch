@@ -142,110 +142,54 @@ public class ResilientLLMService : ILLMService
         }
     }
 
-    public async Task<string> ChatCompletion(
+    public Task<string> ChatCompletion(
         ChatMessage[] messages,
         string deploymentName = "gpt-4o",
         CancellationToken cancellationToken = default)
-    {
-        if (!_circuitBreaker.AllowRequest())
-        {
-            _logger.LogWarning("Circuit breaker is OPEN - LLM completion request rejected");
-            throw new InvalidOperationException("LLM service is temporarily unavailable due to circuit breaker.");
-        }
+        => RunWithResilienceAsync("completion",
+            ct => _innerService.ChatCompletion(messages, deploymentName, ct),
+            cancellationToken);
 
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(TimeSpan.FromSeconds(_timeoutSeconds));
-
-        Exception? lastException = null;
-
-        for (int attempt = 1; attempt <= _maxRetryAttempts; attempt++)
-        {
-            try
-            {
-                var result = await _innerService.ChatCompletion(messages, deploymentName, cts.Token);
-                _circuitBreaker.RecordSuccess();
-                return result;
-            }
-            catch (OperationCanceledException) when (cts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
-            {
-                _logger.LogWarning("LLM completion request timed out after {Timeout}s", _timeoutSeconds);
-                _circuitBreaker.RecordFailure();
-                throw new TimeoutException($"LLM completion timed out after {_timeoutSeconds} seconds");
-            }
-            catch (Exception ex)
-            {
-                lastException = ex;
-                if (attempt < _maxRetryAttempts)
-                {
-                    var delay = RetryHelper.GetBackoffDelay(attempt);
-                    _logger.LogWarning(ex,
-                        "LLM completion attempt {Attempt}/{Max} failed. Retrying after {Delay}s",
-                        attempt, _maxRetryAttempts, delay.TotalSeconds);
-                    await Task.Delay(delay, cancellationToken);
-                }
-            }
-        }
-
-        _circuitBreaker.RecordFailure();
-        _logger.LogError("LLM completion failed after {Attempts} attempts", _maxRetryAttempts);
-        throw lastException ?? new InvalidOperationException("LLM completion failed");
-    }
-
-    public async Task<float[]> GetEmbedding(string text, CancellationToken cancellationToken = default)
-    {
-        if (!_circuitBreaker.AllowRequest())
-        {
-            _logger.LogWarning("Circuit breaker is OPEN - LLM embedding request rejected");
-            throw new InvalidOperationException("LLM service is temporarily unavailable due to circuit breaker.");
-        }
-
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(TimeSpan.FromSeconds(_timeoutSeconds));
-
-        Exception? lastException = null;
-
-        for (int attempt = 1; attempt <= _maxRetryAttempts; attempt++)
-        {
-            try
-            {
-                var result = await _innerService.GetEmbedding(text, cts.Token);
-                _circuitBreaker.RecordSuccess();
-                return result;
-            }
-            catch (OperationCanceledException) when (cts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
-            {
-                _logger.LogWarning("LLM embedding request timed out after {Timeout}s", _timeoutSeconds);
-                _circuitBreaker.RecordFailure();
-                throw new TimeoutException($"LLM embedding timed out after {_timeoutSeconds} seconds");
-            }
-            catch (Exception ex)
-            {
-                lastException = ex;
-                if (attempt < _maxRetryAttempts)
-                {
-                    var delay = RetryHelper.GetBackoffDelay(attempt);
-                    _logger.LogWarning(ex,
-                        "LLM embedding attempt {Attempt}/{Max} failed. Retrying after {Delay}s",
-                        attempt, _maxRetryAttempts, delay.TotalSeconds);
-                    await Task.Delay(delay, cancellationToken);
-                }
-            }
-        }
-
-        _circuitBreaker.RecordFailure();
-        _logger.LogError("LLM embedding failed after {Attempts} attempts", _maxRetryAttempts);
-        throw lastException ?? new InvalidOperationException("LLM embedding failed");
-    }
+    public Task<float[]> GetEmbedding(string text, CancellationToken cancellationToken = default)
+        => RunWithResilienceAsync("embedding",
+            ct => _innerService.GetEmbedding(text, ct),
+            cancellationToken);
 
     public async Task<T?> GetStructuredOutput<T>(
         string prompt,
         string deploymentName = "gpt-4o",
         CancellationToken cancellationToken = default) where T : class
     {
+        try
+        {
+            return await RunWithResilienceAsync("structured output",
+                ct => _innerService.GetStructuredOutput<T>(prompt, deploymentName, ct),
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Runs an LLM operation behind the circuit breaker, a per-request timeout,
+    /// and exponential-backoff retries. Throws on open circuit, timeout, or
+    /// exhausted retries; callers that prefer a null result catch and translate.
+    /// </summary>
+    private async Task<T> RunWithResilienceAsync<T>(
+        string operation,
+        Func<CancellationToken, Task<T>> action,
+        CancellationToken cancellationToken)
+    {
         if (!_circuitBreaker.AllowRequest())
         {
-            _logger.LogWarning("Circuit breaker is OPEN - LLM structured output request rejected");
-            return null;
+            _logger.LogWarning("Circuit breaker is OPEN - LLM {Operation} request rejected", operation);
+            throw new InvalidOperationException("LLM service is temporarily unavailable due to circuit breaker.");
         }
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -257,15 +201,15 @@ public class ResilientLLMService : ILLMService
         {
             try
             {
-                var result = await _innerService.GetStructuredOutput<T>(prompt, deploymentName, cts.Token);
+                var result = await action(cts.Token);
                 _circuitBreaker.RecordSuccess();
                 return result;
             }
             catch (OperationCanceledException) when (cts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
             {
-                _logger.LogWarning("LLM structured output request timed out after {Timeout}s", _timeoutSeconds);
+                _logger.LogWarning("LLM {Operation} request timed out after {Timeout}s", operation, _timeoutSeconds);
                 _circuitBreaker.RecordFailure();
-                return null;
+                throw new TimeoutException($"LLM {operation} timed out after {_timeoutSeconds} seconds");
             }
             catch (Exception ex)
             {
@@ -274,15 +218,15 @@ public class ResilientLLMService : ILLMService
                 {
                     var delay = RetryHelper.GetBackoffDelay(attempt);
                     _logger.LogWarning(ex,
-                        "LLM structured output attempt {Attempt}/{Max} failed. Retrying after {Delay}s",
-                        attempt, _maxRetryAttempts, delay.TotalSeconds);
+                        "LLM {Operation} attempt {Attempt}/{Max} failed. Retrying after {Delay}s",
+                        operation, attempt, _maxRetryAttempts, delay.TotalSeconds);
                     await Task.Delay(delay, cancellationToken);
                 }
             }
         }
 
         _circuitBreaker.RecordFailure();
-        _logger.LogError("LLM structured output failed after {Attempts} attempts", _maxRetryAttempts);
-        return null;
+        _logger.LogError("LLM {Operation} failed after {Attempts} attempts", operation, _maxRetryAttempts);
+        throw lastException ?? new InvalidOperationException($"LLM {operation} failed");
     }
 }
