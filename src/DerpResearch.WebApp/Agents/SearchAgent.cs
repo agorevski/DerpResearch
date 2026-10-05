@@ -159,11 +159,11 @@ public class SearchAgent : ISearchAgent
 
     private int GetResultsPerQuery(int derpificationLevel)
     {
-        if (derpificationLevel <= 33)
+        if (derpificationLevel <= DerpificationConstants.DerpMaxLevel)
         {
             return 3; // Derp mode: Fewer results
         }
-        else if (derpificationLevel <= 66)
+        else if (derpificationLevel <= DerpificationConstants.AverageMaxLevel)
         {
             return 5; // Average mode: Standard results
         }
