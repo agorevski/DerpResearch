@@ -80,23 +80,7 @@ public class LLMService : ILLMService
         try
         {
             // Extract JSON from markdown code blocks if present
-            var jsonText = response.Trim();
-            if (jsonText.StartsWith("```json"))
-            {
-                jsonText = jsonText.Substring(7);
-                if (jsonText.EndsWith("```"))
-                {
-                    jsonText = jsonText.Substring(0, jsonText.Length - 3);
-                }
-            }
-            else if (jsonText.StartsWith("```"))
-            {
-                jsonText = jsonText.Substring(3);
-                if (jsonText.EndsWith("```"))
-                {
-                    jsonText = jsonText.Substring(0, jsonText.Length - 3);
-                }
-            }
+            var jsonText = TextHelper.StripCodeFence(response);
 
             return JsonSerializer.Deserialize<T>(jsonText.Trim(), new JsonSerializerOptions
             {
