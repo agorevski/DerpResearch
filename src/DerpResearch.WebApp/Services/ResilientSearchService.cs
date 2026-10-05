@@ -1,6 +1,5 @@
 using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Models;
-using System.Collections.Concurrent;
 
 namespace DeepResearch.WebApp.Services;
 
@@ -36,7 +35,7 @@ public class ResilientSearchService : ISearchService
     public async Task<SearchResult[]> SearchAsync(string query, int maxResults = 10, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        
+
         // Check circuit breaker
         if (!_circuitBreaker.AllowRequest())
         {
@@ -67,7 +66,7 @@ public class ResilientSearchService : ISearchService
             // Retry logic with exponential backoff
             int maxRetries = 3;
             Exception? lastException = null;
-            
+
                 for (int attempt = 1; attempt <= maxRetries; attempt++)
                 {
                     try
@@ -95,7 +94,7 @@ public class ResilientSearchService : ISearchService
                 }
 
             // All retries exhausted
-            _logger.LogError("All retry attempts exhausted for query: {Query}. Last exception: {Exception}", 
+            _logger.LogError("All retry attempts exhausted for query: {Query}. Last exception: {Exception}",
                 query, lastException?.Message);
             _circuitBreaker.RecordFailure();
             return Array.Empty<SearchResult>();
@@ -109,141 +108,8 @@ public class ResilientSearchService : ISearchService
     public async Task ClearExpiredCacheAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        
+
         // Delegate to inner service
         await _innerService.ClearExpiredCacheAsync(cancellationToken);
-    }
-}
-
-/// <summary>
-/// Simple circuit breaker implementation
-/// </summary>
-public class CircuitBreaker
-{
-    private enum CircuitState { Closed, Open, HalfOpen }
-
-    private CircuitState _state = CircuitState.Closed;
-    private int _failureCount = 0;
-    private DateTime _lastFailureTime = DateTime.MinValue;
-    private readonly int _failureThreshold;
-    private readonly TimeSpan _breakDuration;
-    private readonly ILogger _logger;
-    private readonly object _lock = new();
-
-    public CircuitBreaker(int failureThreshold, TimeSpan breakDuration, ILogger logger)
-    {
-        _failureThreshold = failureThreshold;
-        _breakDuration = breakDuration;
-        _logger = logger;
-    }
-
-    public bool AllowRequest()
-    {
-        lock (_lock)
-        {
-            if (_state == CircuitState.Closed)
-            {
-                return true;
-            }
-
-            if (_state == CircuitState.Open)
-            {
-                // Check if break duration has elapsed
-                if (DateTime.UtcNow - _lastFailureTime >= _breakDuration)
-                {
-                    _logger.LogInformation("Circuit breaker entering HALF-OPEN state");
-                    _state = CircuitState.HalfOpen;
-                    return true;
-                }
-                return false;
-            }
-
-            // Half-open state - allow one request through
-            return true;
-        }
-    }
-
-    public void RecordSuccess()
-    {
-        lock (_lock)
-        {
-            if (_state == CircuitState.HalfOpen)
-            {
-                _logger.LogInformation("Circuit breaker closing after successful request");
-                _state = CircuitState.Closed;
-            }
-            _failureCount = 0;
-        }
-    }
-
-    public void RecordFailure()
-    {
-        lock (_lock)
-        {
-            _failureCount++;
-            _lastFailureTime = DateTime.UtcNow;
-
-            if (_state == CircuitState.HalfOpen)
-            {
-                _logger.LogWarning("Circuit breaker reopening after failure in half-open state");
-                _state = CircuitState.Open;
-            }
-            else if (_failureCount >= _failureThreshold)
-            {
-                _logger.LogError(
-                    "Circuit breaker OPENING after {Count} failures (threshold: {Threshold})",
-                    _failureCount, _failureThreshold);
-                _state = CircuitState.Open;
-            }
-        }
-    }
-}
-
-/// <summary>
-/// Resilient wrapper for web content fetcher
-/// </summary>
-public class ResilientWebContentFetcher : IWebContentFetcher
-{
-    private readonly IWebContentFetcher _innerService;
-    private readonly ILogger<ResilientWebContentFetcher> _logger;
-    private readonly CircuitBreaker _circuitBreaker;
-    private readonly int _timeoutSeconds;
-
-    public ResilientWebContentFetcher(
-        IWebContentFetcher innerService,
-        ILogger<ResilientWebContentFetcher> logger,
-        int timeoutSeconds = 5)
-    {
-        _innerService = innerService;
-        _logger = logger;
-        _timeoutSeconds = timeoutSeconds;
-        _circuitBreaker = new CircuitBreaker(
-            failureThreshold: 5,
-            breakDuration: TimeSpan.FromSeconds(30),
-            logger);
-    }
-
-    public async Task<Dictionary<string, string>> FetchContentAsync(string[] urls, int timeoutSeconds = 5, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        
-        if (!_circuitBreaker.AllowRequest())
-        {
-            _logger.LogWarning("Circuit breaker is OPEN - content fetch request rejected for {Count} URLs", urls.Length);
-            return new Dictionary<string, string>();
-        }
-
-        try
-        {
-            var result = await _innerService.FetchContentAsync(urls, _timeoutSeconds, cancellationToken);
-            _circuitBreaker.RecordSuccess();
-            return result;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to fetch content for {Count} URLs", urls.Length);
-            _circuitBreaker.RecordFailure();
-            return new Dictionary<string, string>();
-        }
     }
 }
