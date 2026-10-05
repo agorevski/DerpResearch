@@ -23,7 +23,7 @@ public class PlannerAgent : IPlannerAgent
         cancellationToken.ThrowIfCancellationRequested();
         userQuery = PromptSanitizer.Sanitize(userQuery);
         
-        var contextSummary = BuildContextSummary(context);
+        var contextSummary = ContextSummary.Build(context, includeMemories: true);
         var complexityGuidance = GetComplexityGuidance(derpificationLevel);
 
         var prompt = $@"You are a research planner. Break down this query into specific research subtasks.
@@ -121,33 +121,4 @@ Return ONLY a valid JSON object matching this structure:
         }
     }
 
-    private string BuildContextSummary(ConversationContext context)
-    {
-        if (context.RecentMessages.Length == 0 && context.RelevantMemories.Length == 0)
-        {
-            return "";
-        }
-
-        var summary = "Previous Context:\n";
-
-        if (context.RecentMessages.Length > 0)
-        {
-            summary += "Recent conversation:\n";
-            foreach (var msg in context.RecentMessages.TakeLast(3))
-            {
-                summary += $"- {msg.Role}: {TextHelper.Truncate(msg.Content, 100)}...\n";
-            }
-        }
-
-        if (context.RelevantMemories.Length > 0)
-        {
-            summary += "\nRelevant memories:\n";
-            foreach (var mem in context.RelevantMemories.Take(3))
-            {
-                summary += $"- {TextHelper.Truncate(mem.Text, 100)}...\n";
-            }
-        }
-
-        return summary;
-    }
 }

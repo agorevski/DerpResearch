@@ -27,7 +27,7 @@ public class ClarificationAgent : IClarificationAgent
         cancellationToken.ThrowIfCancellationRequested();
         userQuery = PromptSanitizer.Sanitize(userQuery);
         
-        var contextSummary = BuildContextSummary(context);
+        var contextSummary = ContextSummary.Build(context, includeMemories: false);
         var questionGuidance = GetQuestionGuidance(derpificationLevel);
 
         var prompt = $@"You are a research assistant helping to understand the user's research needs better.
@@ -105,27 +105,6 @@ The questions should be open-ended and help narrow down the research scope.";
 - Questions should uncover subtle distinctions in research intent
 - Examples: ""What is the temporal and geographical scope?"" or ""Are you seeking comparative analysis, causal relationships, or descriptive synthesis?""";
         }
-    }
-
-    private string BuildContextSummary(ConversationContext context)
-    {
-        if (context.RecentMessages.Length == 0 && context.RelevantMemories.Length == 0)
-        {
-            return "";
-        }
-
-        var summary = "Previous Context:\n";
-
-        if (context.RecentMessages.Length > 0)
-        {
-            summary += "Recent conversation:\n";
-            foreach (var msg in context.RecentMessages.TakeLast(3))
-            {
-                summary += $"- {msg.Role}: {TextHelper.Truncate(msg.Content, 100)}...\n";
-            }
-        }
-
-        return summary;
     }
 
     private ClarificationResult GenerateFallbackQuestions(string userQuery, int derpificationLevel)
