@@ -9,7 +9,7 @@ public interface ILLMService
     /// </summary>
     IAsyncEnumerable<string> ChatCompletionStream(
         ChatMessage[] messages,
-        string deploymentName = "gpt-4o",
+        string deploymentName = LLMConstants.DefaultDeploymentName,
         CancellationToken cancellationToken = default
     );
 
@@ -18,7 +18,7 @@ public interface ILLMService
     /// </summary>
     Task<string> ChatCompletion(
         ChatMessage[] messages,
-        string deploymentName = "gpt-4o",
+        string deploymentName = LLMConstants.DefaultDeploymentName,
         CancellationToken cancellationToken = default
     );
 
@@ -32,7 +32,7 @@ public interface ILLMService
     /// </summary>
     Task<T?> GetStructuredOutput<T>(
         string prompt,
-        string deploymentName = "gpt-4o",
+        string deploymentName = LLMConstants.DefaultDeploymentName,
         CancellationToken cancellationToken = default
     ) where T : class;
 }

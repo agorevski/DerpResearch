@@ -36,7 +36,7 @@ public class ResilientLLMService : ILLMService
 
     public async IAsyncEnumerable<string> ChatCompletionStream(
         ChatMessage[] messages,
-        string deploymentName = "gpt-4o",
+        string deploymentName = LLMConstants.DefaultDeploymentName,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         if (!_circuitBreaker.AllowRequest())
@@ -144,7 +144,7 @@ public class ResilientLLMService : ILLMService
 
     public Task<string> ChatCompletion(
         ChatMessage[] messages,
-        string deploymentName = "gpt-4o",
+        string deploymentName = LLMConstants.DefaultDeploymentName,
         CancellationToken cancellationToken = default)
         => RunWithResilienceAsync("completion",
             ct => _innerService.ChatCompletion(messages, deploymentName, ct),
@@ -157,7 +157,7 @@ public class ResilientLLMService : ILLMService
 
     public async Task<T?> GetStructuredOutput<T>(
         string prompt,
-        string deploymentName = "gpt-4o",
+        string deploymentName = LLMConstants.DefaultDeploymentName,
         CancellationToken cancellationToken = default) where T : class
     {
         try

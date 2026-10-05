@@ -146,7 +146,7 @@ public class OrchestratorService : IOrchestratorService
             }
 
             var responseBuilder = new StringBuilder();
-            await foreach (var token in _llmService.ChatCompletionStream(messages.ToArray(), "gpt-4o", cancellationToken).WithCancellation(cancellationToken))
+            await foreach (var token in _llmService.ChatCompletionStream(messages.ToArray(), LLMConstants.DefaultDeploymentName, cancellationToken).WithCancellation(cancellationToken))
             {
                 responseBuilder.Append(token);
                 yield return token;

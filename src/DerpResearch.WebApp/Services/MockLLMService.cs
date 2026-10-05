@@ -21,7 +21,7 @@ public class MockLLMService : ILLMService
 
     public async IAsyncEnumerable<string> ChatCompletionStream(
         ChatMessage[] messages,
-        string deploymentName = "gpt-4o",
+        string deploymentName = LLMConstants.DefaultDeploymentName,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -43,7 +43,7 @@ public class MockLLMService : ILLMService
 
     public async Task<string> ChatCompletion(
         ChatMessage[] messages,
-        string deploymentName = "gpt-4o",
+        string deploymentName = LLMConstants.DefaultDeploymentName,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -90,7 +90,7 @@ public class MockLLMService : ILLMService
 
     public async Task<T?> GetStructuredOutput<T>(
         string prompt,
-        string deploymentName = "gpt-4o",
+        string deploymentName = LLMConstants.DefaultDeploymentName,
         CancellationToken cancellationToken = default) where T : class
     {
         cancellationToken.ThrowIfCancellationRequested();
