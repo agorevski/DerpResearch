@@ -151,7 +151,7 @@ public class IterativeResearchManager : IIterativeResearchManager
             // Build reasoning text from identified gaps
             var reasoning = reflection.IdentifiedGaps.Length > 0
                 ? string.Join("; ", reflection.IdentifiedGaps)
-                : reflection.ConfidenceScore >= 0.7
+                : reflection.ConfidenceScore >= _reflectionConfig.ConfidenceThreshold
                     ? "Research appears comprehensive with adequate sources and citations."
                     : "Response may benefit from additional detail or sources.";
             

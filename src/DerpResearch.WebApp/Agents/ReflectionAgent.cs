@@ -11,12 +11,18 @@ public class ReflectionAgent : IReflectionAgent
     private readonly ILLMService _llmService;
     private readonly ILogger<ReflectionAgent> _logger;
     private readonly AzureOpenAIConfiguration _aiConfig;
+    private readonly ReflectionConfiguration _reflectionConfig;
 
-    public ReflectionAgent(ILLMService llmService, ILogger<ReflectionAgent> logger, IOptions<AzureOpenAIConfiguration> aiConfig)
+    public ReflectionAgent(
+        ILLMService llmService,
+        ILogger<ReflectionAgent> logger,
+        IOptions<AzureOpenAIConfiguration> aiConfig,
+        IOptions<ReflectionConfiguration> reflectionConfig)
     {
         _llmService = llmService;
         _logger = logger;
         _aiConfig = aiConfig.Value;
+        _reflectionConfig = reflectionConfig.Value;
     }
 
     public async Task<ReflectionResult> ReflectAsync(
@@ -85,15 +91,16 @@ Provide your evaluation:";
         var wordCount = synthesizedResponse.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
 
         var confidence = CalculateHeuristicConfidence(citationCount, wordCount, info.TotalSourcesFound);
+        var threshold = _reflectionConfig.ConfidenceThreshold;
 
         return new ReflectionResult
         {
             ConfidenceScore = confidence,
-            IdentifiedGaps = confidence < 0.7 
-                ? new[] { "Response may lack sufficient detail or citations" } 
+            IdentifiedGaps = confidence < threshold
+                ? new[] { "Response may lack sufficient detail or citations" }
                 : Array.Empty<string>(),
             SuggestedAdditionalSearches = Array.Empty<string>(),
-            RequiresMoreResearch = confidence < 0.7
+            RequiresMoreResearch = confidence < threshold
         };
     }
 

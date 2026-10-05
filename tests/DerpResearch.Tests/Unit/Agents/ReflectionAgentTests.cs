@@ -20,7 +20,8 @@ public class ReflectionAgentTests
         _mockLLMService = TestMockFactory.CreateLLMService();
         _mockLogger = TestMockFactory.CreateLogger<ReflectionAgent>();
         var aiConfig = Options.Create(new AzureOpenAIConfiguration());
-        _agent = new ReflectionAgent(_mockLLMService.Object, _mockLogger.Object, aiConfig);
+        var reflectionConfig = Options.Create(new ReflectionConfiguration());
+        _agent = new ReflectionAgent(_mockLLMService.Object, _mockLogger.Object, aiConfig, reflectionConfig);
     }
 
     [Fact]
