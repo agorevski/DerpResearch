@@ -76,22 +76,13 @@ public class ResilientSearchService : ISearchService
                         _circuitBreaker.RecordSuccess();
                         return result;
                     }
-                    catch (HttpRequestException ex) when (attempt < maxRetries)
-                    {
-                        lastException = ex;
-                        var delaySeconds = Math.Pow(2, attempt);
-                        _logger.LogWarning(ex, 
-                            "Search attempt {Attempt}/{Max} failed for query: {Query}. Retrying after {Delay}s",
-                            attempt, maxRetries, query, delaySeconds);
-                        await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
-                    }
                     catch (Exception ex)
                     {
                         lastException = ex;
                         if (attempt < maxRetries)
                         {
                             var delaySeconds = Math.Pow(2, attempt);
-                            _logger.LogWarning(ex, 
+                            _logger.LogWarning(ex,
                                 "Search attempt {Attempt}/{Max} failed for query: {Query}. Retrying after {Delay}s",
                                 attempt, maxRetries, query, delaySeconds);
                             await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
