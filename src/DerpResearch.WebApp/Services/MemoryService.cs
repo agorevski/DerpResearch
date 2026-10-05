@@ -3,6 +3,7 @@ using DeepResearch.WebApp.Models;
 using DeepResearch.WebApp.Memory;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
+using System.Globalization;
 using System.Text.Json;
 
 namespace DeepResearch.WebApp.Services;
@@ -238,7 +239,7 @@ public class MemoryService : IMemoryService
                     Text = reader.GetString(1),
                     Source = reader.GetString(2),
                     Tags = tags,
-                    Timestamp = DateTime.Parse(reader.GetString(4)),
+                    Timestamp = DateTime.Parse(reader.GetString(4), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
                     ConversationId = reader.IsDBNull(5) ? null : reader.GetString(5),
                     RelevanceScore = similarity
                 });
@@ -306,7 +307,7 @@ public class MemoryService : IMemoryService
                 Source = memReader.GetString(2),
                 Tags = tags,
                 VectorId = memReader.IsDBNull(4) ? null : memReader.GetInt32(4),
-                Timestamp = DateTime.Parse(memReader.GetString(5)),
+                Timestamp = DateTime.Parse(memReader.GetString(5), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
                 ConversationId = conversationId
             });
         }
