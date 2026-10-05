@@ -164,27 +164,10 @@ public class PersistentFaissIndex
         // Offload CPU-bound work to thread pool to avoid blocking the async caller
         return await Task.Run(() =>
         {
-            var similarities = new List<(int id, float similarity)>();
-
             lock (_lock)
             {
-                foreach (var kvp in _vectors)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    var similarity = VectorMath.CosineSimilarity(queryEmbedding, kvp.Value);
-                    similarities.Add((kvp.Key, similarity));
-                }
+                return VectorMath.RankByCosineSimilarity(queryEmbedding, _vectors, topK, cancellationToken);
             }
-
-            var topResults = similarities
-                .OrderByDescending(x => x.similarity)
-                .Take(topK)
-                .ToArray();
-
-            var ids = topResults.Select(x => x.id).ToArray();
-            var distances = topResults.Select(x => x.similarity).ToArray();
-
-            return (ids, distances);
         }, cancellationToken);
     }
 

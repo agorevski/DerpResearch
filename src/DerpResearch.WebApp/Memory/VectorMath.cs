@@ -25,4 +25,30 @@ internal static class VectorMath
 
         return (float)(dotProduct / (Math.Sqrt(magnitudeA) * Math.Sqrt(magnitudeB)));
     }
+
+    /// <summary>
+    /// Rank vectors by cosine similarity to the query and return the top-K ids and scores.
+    /// </summary>
+    public static (int[] ids, float[] distances) RankByCosineSimilarity(
+        float[] query,
+        IEnumerable<KeyValuePair<int, float[]>> vectors,
+        int topK,
+        CancellationToken cancellationToken = default)
+    {
+        var similarities = new List<(int id, float similarity)>();
+        foreach (var kvp in vectors)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            similarities.Add((kvp.Key, CosineSimilarity(query, kvp.Value)));
+        }
+
+        var topResults = similarities
+            .OrderByDescending(x => x.similarity)
+            .Take(topK)
+            .ToArray();
+
+        return (
+            topResults.Select(x => x.id).ToArray(),
+            topResults.Select(x => x.similarity).ToArray());
+    }
 }
