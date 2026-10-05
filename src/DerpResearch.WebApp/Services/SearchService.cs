@@ -2,6 +2,7 @@ using DeepResearch.WebApp.Interfaces;
 using DeepResearch.WebApp.Models;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -152,7 +153,7 @@ public class SearchService : ISearchService
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (await reader.ReadAsync())
         {
-            var timestamp = DateTime.Parse(reader.GetString(1));
+            var timestamp = DateTime.Parse(reader.GetString(1), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
             var age = DateTime.UtcNow - timestamp;
 
             if (age.TotalSeconds < _cacheDuration)
