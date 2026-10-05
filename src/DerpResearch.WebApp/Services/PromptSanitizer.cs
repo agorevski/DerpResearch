@@ -15,8 +15,7 @@ public static class PromptSanitizer
             return string.Empty;
 
         // Truncate to max length
-        if (input.Length > maxLength)
-            input = input[..maxLength];
+        input = TextHelper.Truncate(input, maxLength);
 
         // Remove control characters (except newlines and tabs which may be legitimate)
         input = new string(input.Where(c => !char.IsControl(c) || c == '\n' || c == '\r' || c == '\t').ToArray());
